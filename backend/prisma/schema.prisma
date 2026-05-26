@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ================= ENUMS =================
+ */
+
+enum CustomerType {
+  DOMESTIC
+  COMMERCIAL
+}
+
+
+enum AreaType {
+  URBAN
+  RURAL
+}
+
+enum CylinderType {
+  KG_14_2
+  KG_19
+  KG_47_5
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  ASSIGNED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  UPI
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PartnerStatus {
+  AVAILABLE
+  ON_DELIVERY
+  OFF_DUTY
+}
+
+enum DeliveryStatus {
+  ASSIGNED
+  OUT_FOR_DELIVERY
+  DELIVERED
+}
+
+/**
+ * ================= MODELS =================
+ */
+
+model Customer {
+  id              String       @id @default(cuid())
+  name            String
+  phone           String       @unique
+  password        String?
+  address         String
+  city            String
+  state           String
+  customerType    CustomerType
+  areaType        AreaType
+  subsidyEligible Boolean      @default(false)
+
+  orders   Order[]
+  invoices Invoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customers")
+}
+
+model DeliveryPartner {
+  id            String        @id @default(cuid())
+  name          String
+  phone         String        @unique
+  currentStatus PartnerStatus @default(AVAILABLE)
+
+  totalDeliveries Int   @default(0)
+  rating          Float @default(5.0)
+
+  serviceZone String
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("delivery_partners")
+}
+
+model Pricing {
+  id           String       @id @default(cuid())
+  cylinderType CylinderType
+  region       AreaType
+
+  basePrice      Float
+  deliveryCharge Float
+  taxPercentage  Float
+
+  effectiveDate DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pricing")
+}
+
+model Order {
+  id String @id @default(cuid())
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  partnerId String?
+  partner   DeliveryPartner? @relation(fields: [partnerId], references: [id])
+
+  cylinderType CylinderType
+  quantity     Int          @default(1)
+
+  deliveryAddress String
+
+  status OrderStatus @default(PLACED)
+
+  paymentMethod PaymentMethod?
+  paymentStatus PaymentStatus  @default(PENDING)
+
+  amountDue  Float
+  amountPaid Float @default(0)
+
+  payment          Payment?
+  invoice          Invoice?
+  deliveryTracking DeliveryTracking?
+
+  auditLogs AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("orders")
+}
+
+model Payment {
+  id String @id @default(cuid())
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  method PaymentMethod
+  status PaymentStatus @default(PENDING)
+
+  amount Float
+
+  transactionId String?
+
+  retryCount Int @default(0)
+
+  // ── Refund tracking ──────────────────────────────────────
+  refundStatus      String    @default("NOT_REQUIRED")
+  refundInitiatedAt DateTime?
+  refundCompletedAt DateTime?
+  // ────────────────────────────────────────────────────────
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payments")
+}
+
+model Invoice {
+  id String @id @default(cuid())
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  cylinderPrice  Float
+  deliveryCharge Float
+  subsidy        Float
+  tax            Float
+  totalAmount    Float
+
+  createdAt DateTime @default(now())
+
+  @@map("invoices")
+}
+
+model DeliveryTracking {
+  id String @id @default(cuid())
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  partnerId String
+
+  status DeliveryStatus @default(ASSIGNED)
+
+  photos         String?
+  signaturePhoto String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("delivery_assignments")
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  action String
+
+  fromStatus String?
+  toStatus   String?
+
+  message String?
+
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model OtpVerification {
+  id String @id @default(cuid())
+
+  phone String
+  otp   String
+
+  purpose String @default("CUSTOMER")
+
+  expiresAt DateTime
+
+  verified Boolean @default(false)
+
+  attemptCount Int @default(0)
+
+  lastSentAt DateTime @default(now())
+
+  blockedUntil DateTime?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
