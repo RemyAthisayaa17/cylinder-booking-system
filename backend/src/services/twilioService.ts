@@ -5,10 +5,18 @@ const client = twilio(
   process.env.TWILIO_AUTH_TOKEN!
 );
 
-export const sendOtpSms = async (phone: string, otp: string) => {
-  await client.messages.create({
-    body: `Your OTP is ${otp}`,
-    from: process.env.TWILIO_PHONE_NUMBER!,
+const SERVICE_ID = process.env.TWILIO_SERVICE_ID!;
+
+export const sendTwilioOtp = async (phone: string) => {
+  return client.verify.v2.services(SERVICE_ID).verifications.create({
     to: phone,
+    channel: "sms"
+  });
+};
+
+export const verifyTwilioOtp = async (phone: string, code: string) => {
+  return client.verify.v2.services(SERVICE_ID).verificationChecks.create({
+    to: phone,
+    code
   });
 };

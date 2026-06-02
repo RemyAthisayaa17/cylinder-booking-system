@@ -48,6 +48,12 @@ enum PaymentStatus {
   FAILED
 }
 
+enum RefundStatus {
+  NOT_REQUIRED
+  PENDING
+  COMPLETED
+}
+
 enum PartnerStatus {
   AVAILABLE
   ON_DELIVERY
@@ -171,8 +177,9 @@ model Payment {
   retryCount Int @default(0)
 
   // ── Refund tracking ──────────────────────────────────────
-  refundStatus      String    @default("NOT_REQUIRED")
+  refundStatus      RefundStatus    @default(NOT_REQUIRED)
   refundInitiatedAt DateTime?
+  refundEligibleAt  DateTime?
   refundCompletedAt DateTime?
   // ────────────────────────────────────────────────────────
 

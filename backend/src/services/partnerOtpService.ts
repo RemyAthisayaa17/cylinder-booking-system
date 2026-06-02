@@ -1,124 +1,124 @@
 import prisma from "../config/db";
 import { AppError } from "../utils/AppError";
 import { generateToken } from "../utils/jwt";
-import { sendOtpSms } from "./twilioService";
+import { sendTwilioOtp, verifyTwilioOtp } from "./twilioService";
+import { toDbPhone, toTwilioPhone } from "../utils/phoneUtil";
 
 const PURPOSE = "PARTNER";
-
-const OTP_TTL_MS = 5 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 30 * 1000;
-const MAX_ATTEMPTS = 5;
-const BLOCK_DURATION_MS = 15 * 60 * 1000;
-
-const cleanPhone = (phone: string) => phone.replace(/\D/g, '');
 
 const generateOtp = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
-/** SEND PARTNER OTP */
+/** SEND OTP */
 export const sendPartnerOtp = async (phone: string) => {
-  const clean = cleanPhone(phone);
+  const dbPhone = toDbPhone(phone);
 
   const partner = await prisma.deliveryPartner.findUnique({
-    where: { phone: clean }
+    where: { phone: dbPhone }
   });
 
   if (!partner) throw new AppError("Partner not found", 404);
 
+  const now = new Date();
+
   const existing = await prisma.otpVerification.findFirst({
-    where: { phone: clean, purpose: PURPOSE, verified: false },
+    where: {
+      phone: dbPhone,
+      purpose: PURPOSE,
+      verified: false
+    },
     orderBy: { createdAt: "desc" }
   });
 
   if (existing) {
     const elapsed = Date.now() - existing.lastSentAt.getTime();
-    if (elapsed < RESEND_COOLDOWN_MS)
+    if (elapsed < RESEND_COOLDOWN_MS) {
       throw new AppError("Wait before retry", 429);
+    }
   }
 
-  const otp = generateOtp();
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + OTP_TTL_MS);
+  /** LOCAL MODE */
+  if (process.env.OTP_MODE === "LOCAL") {
+    const otp = generateOtp();
+    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
 
-  if (existing) {
-    await prisma.otpVerification.update({
-      where: { id: existing.id },
-      data: {
-        otp,
-        expiresAt,
-        attemptCount: 0,
-        blockedUntil: null,
-        lastSentAt: now
-      }
-    });
-  } else {
-    await prisma.otpVerification.create({
-      data: {
-        phone: clean,
-        purpose: PURPOSE,
-        otp,
-        expiresAt,
-        verified: false,
-        lastSentAt: now
-      }
-    });
+    if (existing) {
+      await prisma.otpVerification.update({
+        where: { id: existing.id },
+        data: {
+          otp,
+          expiresAt, 
+          lastSentAt: now
+        }
+      });
+    } else {
+      await prisma.otpVerification.create({
+        data: {
+          phone: dbPhone,
+          purpose: PURPOSE,
+          otp,
+          verified: false,
+          lastSentAt: now,
+          expiresAt 
+        }
+      });
+    }
+
+    console.log(`[LOCAL PARTNER OTP] ${dbPhone}: ${otp}`);
+    return { message: "OTP sent (LOCAL)" };
   }
 
-  console.log(`[PARTNER OTP] ${clean}: ${otp}`);
+  /** TWILIO MODE */
+  await sendTwilioOtp(toTwilioPhone(dbPhone));
 
-  if (process.env.OTP_MODE === "TWILIO") {
-    await sendOtpSms(clean, otp);
-  }
-
-  return { message: "OTP sent", phone: clean };
+  return { message: "OTP sent (TWILIO)" };
 };
 
-/** VERIFY PARTNER OTP */
+/** VERIFY OTP */
 export const verifyPartnerOtp = async (phone: string, otp: string) => {
-  const clean = cleanPhone(phone);
+  const dbPhone = toDbPhone(phone);
 
-  const record = await prisma.otpVerification.findFirst({
-    where: { phone: clean, purpose: PURPOSE, verified: false },
-    orderBy: { createdAt: "desc" }
+  const partner = await prisma.deliveryPartner.findUnique({
+    where: { phone: dbPhone }
   });
 
-  if (!record) throw new AppError("No OTP found", 400);
+  if (!partner) throw new AppError("Partner not found", 404);
 
-  if (record.blockedUntil && record.blockedUntil > new Date())
-    throw new AppError("Too many attempts", 429);
+  if (process.env.OTP_MODE === "LOCAL") {
+    const record = await prisma.otpVerification.findFirst({
+      where: {
+        phone: dbPhone,
+        purpose: PURPOSE,
+        verified: false
+      },
+      orderBy: { createdAt: "desc" }
+    });
 
-  if (record.expiresAt < new Date())
-    throw new AppError("OTP expired", 400);
+    if (!record) throw new AppError("No OTP found", 400);
 
-  if (record.otp !== otp) {
-    const count = record.attemptCount + 1;
+    if (record.expiresAt < new Date()) {
+      throw new AppError("OTP expired", 400);
+    }
+
+    if (record.otp !== otp) {
+      throw new AppError("Invalid OTP", 400);
+    }
 
     await prisma.otpVerification.update({
       where: { id: record.id },
       data: {
-        attemptCount: count,
-        ...(count >= MAX_ATTEMPTS && {
-          blockedUntil: new Date(Date.now() + BLOCK_DURATION_MS)
-        })
+        verified: true,
+        otp: ""
       }
     });
+  } else {
+    const result = await verifyTwilioOtp(toTwilioPhone(dbPhone), otp);
 
-    throw new AppError("Invalid OTP", 400);
-  }
-
-  await prisma.otpVerification.update({
-    where: { id: record.id },
-    data: {
-      verified: true,
-      otp: ""
+    if (result.status !== "approved") {
+      throw new AppError("Invalid OTP", 400);
     }
-  });
-
-  const partner = await prisma.deliveryPartner.findUnique({
-    where: { phone: clean }
-  });
-
-  if (!partner) throw new AppError("Partner not found", 404);
+  }
 
   const token = generateToken({
     id: partner.id,
