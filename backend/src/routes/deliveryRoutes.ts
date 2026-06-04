@@ -7,13 +7,10 @@ import {
 } from "../controllers/deliveryController";
 import { authMiddleware } from "../middleware/authMiddleware";
 import { authorizeRoles } from "../middleware/roleMiddleware";
+import { uploadDeliveryProof } from "../middleware/uploadMiddleware";
 
 const router = express.Router();
 
-/**
- * GET ASSIGNED ORDERS for logged-in delivery partner
- * RBAC: DELIVERY_PARTNER only — partnerId taken from JWT
- */
 router.get(
   "/my-orders",
   authMiddleware,
@@ -21,10 +18,7 @@ router.get(
   getAssignedOrdersController
 );
 
-/**
- * ASSIGN DELIVERY PARTNER
- * RBAC: ADMIN only — system action
- */
+
 router.post(
   "/assign",
   authMiddleware,
@@ -32,10 +26,6 @@ router.post(
   assignPartnerController
 );
 
-/**
- * START DELIVERY
- * RBAC: DELIVERY_PARTNER only
- */
 router.post(
   "/start",
   authMiddleware,
@@ -43,14 +33,15 @@ router.post(
   startDeliveryController
 );
 
-/**
- * COMPLETE DELIVERY
- * RBAC: DELIVERY_PARTNER only
- */
 router.post(
   "/complete",
   authMiddleware,
   authorizeRoles("DELIVERY_PARTNER"),
+  uploadDeliveryProof.fields([
+    { name: "beforePhoto", maxCount: 1 },
+    { name: "afterPhoto", maxCount: 1 },
+    { name: "signaturePhoto", maxCount: 1 },
+  ]),
   completeDeliveryController
 );
 

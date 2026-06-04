@@ -27,12 +27,48 @@ export const startDeliveryController = asyncHandler(async (req: Request, res: Re
 });
 
 /** COMPLETE DELIVERY */
-export const completeDeliveryController = asyncHandler(async (req: Request, res: Response) => {
-  const { orderId, photos, signaturePhoto } = req.body;
-  if (!orderId) throw new AppError("Missing required field: orderId", 400);
-  const data = await completeDelivery({ orderId, photos, signaturePhoto });
-  return successResponse({ res, code: 200, msg: "Delivery completed", data });
-});
+export const completeDeliveryController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      throw new AppError("Missing required field: orderId", 400);
+    }
+
+    const files = req.files as {
+      [fieldname: string]: Express.Multer.File[];
+    };
+
+    const beforePhoto =
+      files?.beforePhoto?.[0]
+        ? `/uploads/delivery/${files.beforePhoto[0].filename}`
+        : undefined;
+
+    const afterPhoto =
+      files?.afterPhoto?.[0]
+        ? `/uploads/delivery/${files.afterPhoto[0].filename}`
+        : undefined;
+
+    const signaturePhoto =
+      files?.signaturePhoto?.[0]
+        ? `/uploads/delivery/${files.signaturePhoto[0].filename}`
+        : undefined;
+
+    const data = await completeDelivery({
+      orderId,
+      beforePhoto,
+      afterPhoto,
+      signaturePhoto,
+    });
+
+    return successResponse({
+      res,
+      code: 200,
+      msg: "Delivery completed",
+      data,
+    });
+  }
+);
 
 /**
  * GET ASSIGNED ORDERS — for logged-in delivery partner

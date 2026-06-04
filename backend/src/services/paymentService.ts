@@ -104,7 +104,8 @@ const handleUpiPayment = async (orderId: string) => {
   }
 
   // ── MOCK GATEWAY: succeeds ~85% of the time, fails ~15% ──
-  const paymentSuccess = Math.random() < 0.85;
+ //const paymentSuccess = Math.random() < 0.85;
+ const paymentSuccess = false;
 
   if (!paymentSuccess) {
     await prisma.payment.upsert({
@@ -244,13 +245,23 @@ export const processPayment = async (data: {
     throw new AppError("Order is already completed or cancelled", 409);
   }
 
-  if (
-    data.method === PaymentMethod.UPI &&
-    order.paymentStatus === PaymentStatus.SUCCESS
-  ) {
-    throw new AppError("Payment already completed", 409);
-  }
+if (
+  data.method === PaymentMethod.UPI &&
+  order.paymentStatus === PaymentStatus.SUCCESS
+) {
+  throw new AppError("Payment already completed", 409);
+}
 
+if (
+  data.method === PaymentMethod.UPI &&
+  order.payment &&
+  order.payment.retryCount >= 3
+) {
+  throw new AppError(
+    "Maximum retry limit reached. Please pay using Cash On Delivery.",
+    409
+  );
+}
   if (data.method === PaymentMethod.CASH) {
     return handleCashPayment(data.orderId);
   }
@@ -269,10 +280,12 @@ export const retryPayment = async (orderId: string) => {
 
   if (!order)         throw new AppError("Order not found", 404);
   if (!order.payment) throw new AppError("No payment record found", 404);
-  if (order.payment.retryCount >= 3) {
-    throw new AppError("Max retry limit reached. Please try again later.", 409);
-  }
-
+if (order.payment.retryCount >= 3) {
+  throw new AppError(
+    "Maximum retry limit reached. Please pay using Cash On Delivery.",
+    409
+  );
+}
   await prisma.payment.update({
     where: { orderId },
     data:  { retryCount: { increment: 1 } },

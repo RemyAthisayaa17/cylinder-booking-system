@@ -123,8 +123,9 @@ export const startDelivery = async (orderId: string) => {
  * If payment is still PENDING (unexpected state), invoice is NOT generated.
  */
 export const completeDelivery = async (data: {
-  orderId:         string;
-  photos?:         string;
+  orderId: string;
+  beforePhoto?: string;
+  afterPhoto?: string;
   signaturePhoto?: string;
 }) => {
   const order = await prisma.order.findUnique({
@@ -142,32 +143,34 @@ export const completeDelivery = async (data: {
     throw new AppError("Delivery not in progress", 409);
   }
 
-  // 1. Mark delivery tracking DELIVERED and update order status atomically
-  const result = await prisma.$transaction(async (tx) => {
-    await tx.deliveryTracking.update({
-      where: { orderId: data.orderId },
-      data: {
-        status:         DeliveryStatus.DELIVERED,
-        photos:         data.photos,
-        signaturePhoto: data.signaturePhoto,
-      },
-    });
-
-    const updatedOrder = await tx.order.update({
-      where: { id: data.orderId },
-      data:  { status: OrderStatus.DELIVERED },
-    });
-
-    if (order.partnerId) {
-      await tx.deliveryPartner.update({
-        where: { id: order.partnerId },
-        data:  { currentStatus: PartnerStatus.AVAILABLE },
-      });
-    }
-
-    return updatedOrder;
+ // 1. Mark delivery tracking DELIVERED and update order status atomically
+const result = await prisma.$transaction(async (tx) => {
+  await tx.deliveryTracking.update({
+    where: { orderId: data.orderId },
+    data: {
+      status: DeliveryStatus.DELIVERED,
+      beforePhoto: data.beforePhoto,
+      afterPhoto: data.afterPhoto,
+      signaturePhoto: data.signaturePhoto,
+    },
   });
 
+  const updatedOrder = await tx.order.update({
+    where: { id: data.orderId },
+    data: { status: OrderStatus.DELIVERED },
+  });
+
+  if (order.partnerId) {
+    await tx.deliveryPartner.update({
+      where: { id: order.partnerId },
+      data: {
+        currentStatus: PartnerStatus.AVAILABLE,
+      },
+    });
+  }
+
+  return updatedOrder;
+});
   // 2. CASH: collect payment on delivery — mark paymentStatus = SUCCESS
   if (order.paymentMethod === PaymentMethod.CASH) {
     await prisma.order.update({

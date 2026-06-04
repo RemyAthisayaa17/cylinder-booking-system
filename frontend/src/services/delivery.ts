@@ -1,18 +1,72 @@
 import http from '../api/http';
 import type { ApiResponse, DeliveryActionData, Order } from '../types';
 
-// POST /api/delivery/assign  Body: { orderId }
+/**
+ * ASSIGN DELIVERY PARTNER
+ * POST /api/delivery/assign
+ */
 export const assignPartner = (orderId: string) =>
-  http.post<ApiResponse<DeliveryActionData>>('/api/delivery/assign', { orderId }).then(r => r.data);
+  http
+    .post<ApiResponse<DeliveryActionData>>(
+      '/api/delivery/assign',
+      { orderId }
+    )
+    .then((r) => r.data);
 
-// POST /api/delivery/start   Body: { orderId }
+/**
+ * START DELIVERY
+ * POST /api/delivery/start
+ */
 export const startDelivery = (orderId: string) =>
-  http.post<ApiResponse<DeliveryActionData>>('/api/delivery/start', { orderId }).then(r => r.data);
+  http
+    .post<ApiResponse<DeliveryActionData>>(
+      '/api/delivery/start',
+      { orderId }
+    )
+    .then((r) => r.data);
 
-// POST /api/delivery/complete Body: { orderId }
-export const completeDelivery = (orderId: string) =>
-  http.post<ApiResponse<DeliveryActionData>>('/api/delivery/complete', { orderId }).then(r => r.data);
+/**
+ * COMPLETE DELIVERY
+ * POST /api/delivery/complete
+ * multipart/form-data
+ *
+ * Backend expects:
+ * - orderId
+ * - beforePhoto
+ * - afterPhoto
+ * - signaturePhoto
+ */
+export const completeDelivery = (
+  orderId: string,
+  beforePhoto: File,
+  afterPhoto: File,
+  signaturePhoto: File
+) => {
+  const formData = new FormData();
 
-// GET /api/delivery/my-orders  (RBAC: DELIVERY_PARTNER — JWT used server-side)
+  formData.append('orderId', orderId);
+  formData.append('beforePhoto', beforePhoto);
+  formData.append('afterPhoto', afterPhoto);
+  formData.append('signaturePhoto', signaturePhoto);
+
+  return http
+    .post<ApiResponse<DeliveryActionData>>(
+      '/api/delivery/complete',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
+    .then((r) => r.data);
+};
+
+/**
+ * GET MY ASSIGNED ORDERS
+ * GET /api/delivery/my-orders
+ */
 export const getMyOrders = () =>
-  http.get<ApiResponse<Order[]>>('/api/delivery/my-orders').then(r => r.data);
+  http
+    .get<ApiResponse<Order[]>>('/api/delivery/my-orders')
+    .then((r) => r.data);

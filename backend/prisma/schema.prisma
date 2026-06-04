@@ -207,7 +207,7 @@ model Invoice {
   createdAt DateTime @default(now())
 
   @@map("invoices")
-}
+} 
 
 model DeliveryTracking {
   id String @id @default(cuid())
@@ -218,9 +218,9 @@ model DeliveryTracking {
   partnerId String
 
   status DeliveryStatus @default(ASSIGNED)
-
-  photos         String?
-  signaturePhoto String?
+    beforePhoto    String?
+    afterPhoto     String?
+    signaturePhoto String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -12,3 +12,5 @@ export const generateInvoice = (orderId: string) =>
 export const getInvoice = (orderId: string) =>
   http.get<ApiResponse<Invoice>>(`/api/invoices/${orderId}`)
     .then(r => r.data);
+
+    

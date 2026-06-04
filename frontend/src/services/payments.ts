@@ -31,3 +31,7 @@ export const retryPayment = async (
 
   return res.data;
 };
+export const getPaymentState = async (orderId: string) => {
+  const res = await http.get(`/api/payments/state/${orderId}`);
+  return res.data;
+};
