@@ -9,6 +9,7 @@ import {
 } from "@prisma/client";
 
 import { AppError } from "../utils/AppError";
+import { geocodeAddress } from "../utils/geoCode";
 
 const round2 = (n: number): number =>
   Math.round(n * 100) / 100;
@@ -162,6 +163,15 @@ export const createOrder = async (data: {
   );
   const total = round2(base + delivery + tax - subsidy);
 
+  // Geocode delivery address — non-blocking; order creation continues on failure
+  const coords = await geocodeAddress(data.deliveryAddress);
+
+  if (!coords) {
+    console.warn(
+      `[orderService] Geocoding failed for address: ${data.deliveryAddress}`
+    );
+  }
+
   const order = await prisma.order.create({
     data: {
       customerId: data.customerId,
@@ -173,6 +183,8 @@ export const createOrder = async (data: {
       amountPaid: 0,
       status: OrderStatus.PLACED,
       paymentStatus: "PENDING",
+      latitude: coords?.latitude ?? null,
+      longitude: coords?.longitude ?? null,
     },
   });
 
@@ -185,6 +197,16 @@ export const createOrder = async (data: {
       message: `Order placed by customer ${data.customerId}`,
     },
   });
+
+  if (!coords) {
+    await prisma.auditLog.create({
+      data: {
+        orderId: order.id,
+        action: "GEO_FAILED",
+        message: "Geocoding failed for delivery address",
+      },
+    });
+  }
 
   return {
     orderId: order.id,

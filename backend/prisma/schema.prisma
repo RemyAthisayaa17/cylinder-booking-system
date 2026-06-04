@@ -141,6 +141,9 @@ model Order {
 
   deliveryAddress String
 
+  latitude  Float?
+  longitude Float?
+
   status OrderStatus @default(PLACED)
 
   paymentMethod PaymentMethod?

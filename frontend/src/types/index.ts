@@ -95,6 +95,8 @@ export interface Order {
   cylinderType:     CylinderType;
   quantity:         number;
   deliveryAddress:  string;
+  latitude:         number | null;
+  longitude:        number | null;
   status:           OrderStatus;
   paymentMethod:    PaymentMethod | null;
   paymentStatus:    PaymentStatus;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { showSuccess, showError } from '../../utils/toast';
-import { Truck, ChevronRight, Camera, CheckCircle } from 'lucide-react';
+import { Truck, ChevronRight, Camera, CheckCircle, Navigation } from 'lucide-react';
 import { getMyOrders, startDelivery } from '../../services/delivery';
 import {
   Btn,
@@ -145,6 +145,25 @@ export default function PartnerOrders() {
                       Start Delivery
                     </Btn>
                   )}
+
+                  {(o.status === 'ASSIGNED' || o.status === 'OUT_FOR_DELIVERY') && (
+                      <Btn
+                        variant="ghost"
+                        icon={<Navigation size={13} />}
+                        onClick={() => {
+                          const hasValidCoords =
+                            typeof o.latitude === 'number' &&
+                            typeof o.longitude === 'number' &&
+                            !(o.latitude === 0 && o.longitude === 0);
+                          const url = hasValidCoords
+                            ? `https://www.openstreetmap.org/?mlat=${o.latitude}&mlon=${o.longitude}#map=18/${o.latitude}/${o.longitude}`
+                            : `https://www.openstreetmap.org/search?query=${encodeURIComponent(o.deliveryAddress)}`;
+                          window.open(url, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        Navigate
+                      </Btn>
+                    )}
 
                   {o.status === 'OUT_FOR_DELIVERY' && (
                     <Btn
