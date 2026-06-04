@@ -1,20 +1,15 @@
 import express from "express";
-
 import {
   processPaymentController,
   cashPaymentController,
   retryPaymentController,
+  collectCashPaymentController,
 } from "../controllers/paymentController";
-
 import { authMiddleware } from "../middleware/authMiddleware";
-
 import { authorizeRoles } from "../middleware/roleMiddleware";
 
 const router = express.Router();
 
-/**
- * PROCESS PAYMENT
- */
 router.post(
   "/process",
   authMiddleware,
@@ -22,9 +17,6 @@ router.post(
   processPaymentController
 );
 
-/**
- * CASH PAYMENT
- */
 router.post(
   "/cash",
   authMiddleware,
@@ -32,14 +24,19 @@ router.post(
   cashPaymentController
 );
 
-/**
- * RETRY PAYMENT
- */
 router.post(
   "/retry",
   authMiddleware,
   authorizeRoles("CUSTOMER"),
   retryPaymentController
+);
+
+// Delivery partner confirms they collected cash after delivery
+router.post(
+  "/collect-cash",
+  authMiddleware,
+  authorizeRoles("DELIVERY_PARTNER"),
+  collectCashPaymentController
 );
 
 export default router;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { completeDelivery } from "../services/delivery";
-
+import { showSuccess, showError } from '../utils/toast';
 type Props = {
   orderId: string;
   onSuccess?: () => void;
@@ -20,7 +20,7 @@ export default function DeliveryProofUpload({
 
   const handleSubmit = async () => {
     if (!beforePhoto || !afterPhoto || !signaturePhoto) {
-      alert("All 3 photos are required");
+      showError("All 3 photos are required");
       return;
     }
 
@@ -34,7 +34,7 @@ export default function DeliveryProofUpload({
         signaturePhoto
       );
 
-      alert("Delivery Completed Successfully");
+      showSuccess("Delivery Completed Successfully");
 
       setBeforePhoto(null);
       setAfterPhoto(null);
@@ -43,7 +43,7 @@ export default function DeliveryProofUpload({
       onSuccess?.();
     } catch (err) {
       console.error(err);
-      alert("Failed to complete delivery");
+      showError("Failed to complete delivery");
     } finally {
       setLoading(false);
     }
