@@ -26,6 +26,19 @@ export const startDelivery = (orderId: string) =>
     .then((r) => r.data);
 
 /**
+ * ARRIVED AT CUSTOMER LOCATION
+ * PATCH /api/delivery/:orderId/arrived
+ * Updates DeliveryTracking.status → ARRIVED.
+ * Does NOT change Order.status.
+ */
+export const arrivedAtCustomer = (orderId: string) =>
+  http
+    .patch<ApiResponse<DeliveryActionData>>(
+      `/api/delivery/${orderId}/arrived`
+    )
+    .then((r) => r.data);
+
+/**
  * COMPLETE DELIVERY
  * POST /api/delivery/complete
  * multipart/form-data
@@ -35,18 +48,23 @@ export const startDelivery = (orderId: string) =>
  * - beforePhoto
  * - afterPhoto
  * - signaturePhoto
+ *
+ * Pre-conditions (enforced server-side):
+ * - DeliveryTracking.status = ARRIVED
+ * - All 3 photos present
+ * - paymentStatus = SUCCESS
  */
 export const completeDelivery = (
-  orderId: string,
-  beforePhoto: File,
-  afterPhoto: File,
+  orderId:        string,
+  beforePhoto:    File,
+  afterPhoto:     File,
   signaturePhoto: File
 ) => {
   const formData = new FormData();
 
-  formData.append('orderId', orderId);
-  formData.append('beforePhoto', beforePhoto);
-  formData.append('afterPhoto', afterPhoto);
+  formData.append('orderId',        orderId);
+  formData.append('beforePhoto',    beforePhoto);
+  formData.append('afterPhoto',     afterPhoto);
   formData.append('signaturePhoto', signaturePhoto);
 
   return http

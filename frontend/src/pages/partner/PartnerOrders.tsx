@@ -159,7 +159,7 @@ export default function PartnerOrders() {
                             ? `https://www.openstreetmap.org/?mlat=${o.latitude}&mlon=${o.longitude}#map=18/${o.latitude}/${o.longitude}`
                             : `https://www.openstreetmap.org/search?query=${encodeURIComponent(o.deliveryAddress)}`;
                           window.open(url, '_blank', 'noopener,noreferrer');
-                        }}
+                        }} 
                       >
                         Navigate
                       </Btn>

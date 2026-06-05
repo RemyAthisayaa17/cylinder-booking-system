@@ -42,14 +42,23 @@ export const retryPaymentController = asyncHandler(
   }
 );
 
-// Called by delivery partner after handing over cylinder and receiving cash
+/**
+ * COLLECT CASH PAYMENT
+ * PATCH /api/payments/collect-cash/:orderId
+ * Called by delivery partner after physically collecting cash from customer.
+ * Requirements (enforced in service):
+ *   - Order.status = OUT_FOR_DELIVERY
+ *   - DeliveryTracking.status = ARRIVED
+ *   - paymentMethod = CASH
+ *   - paymentStatus != SUCCESS (not already collected)
+ */
 export const collectCashPaymentController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
-    const { orderId } = req.body;
+    const orderId   = String(req.params.orderId);
     const partnerId = req.user?.id as string;
 
     if (!orderId) {
-      throw new AppError("Missing required field: orderId", 400);
+      throw new AppError("Missing orderId in path", 400);
     }
     if (!partnerId) {
       throw new AppError("Unauthorized", 401);
