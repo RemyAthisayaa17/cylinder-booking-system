@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import {
   assignDeliveryPartner,
   startDelivery,
+  markPartnerArrived,
   completeDelivery
 } from "../services/deliveryService";
 import { successResponse } from "../utils/apiResponse";
@@ -39,20 +40,17 @@ export const completeDeliveryController = asyncHandler(
       [fieldname: string]: Express.Multer.File[];
     };
 
-    const beforePhoto =
-      files?.beforePhoto?.[0]
-        ? `/uploads/delivery/${files.beforePhoto[0].filename}`
-        : undefined;
+    const beforeFile = files?.beforePhoto?.[0];
+    const afterFile = files?.afterPhoto?.[0];
+    const signatureFile = files?.signaturePhoto?.[0];
 
-    const afterPhoto =
-      files?.afterPhoto?.[0]
-        ? `/uploads/delivery/${files.afterPhoto[0].filename}`
-        : undefined;
+    if (!beforeFile || !afterFile || !signatureFile) {
+      throw new AppError("All 3 photos are required", 400);
+    }
 
-    const signaturePhoto =
-      files?.signaturePhoto?.[0]
-        ? `/uploads/delivery/${files.signaturePhoto[0].filename}`
-        : undefined;
+    const beforePhoto = `/uploads/delivery/${beforeFile.filename}`;
+    const afterPhoto = `/uploads/delivery/${afterFile.filename}`;
+    const signaturePhoto = `/uploads/delivery/${signatureFile.filename}`;
 
     const data = await completeDelivery({
       orderId,
@@ -69,7 +67,6 @@ export const completeDeliveryController = asyncHandler(
     });
   }
 );
-
 /**
  * GET ASSIGNED ORDERS — for logged-in delivery partner
  * RBAC: partnerId taken from JWT (req.user.id), never from body
@@ -96,3 +93,27 @@ export const getAssignedOrdersController = asyncHandler(async (req: AuthRequest,
     data: orders
   });
 });
+
+export const arrivedController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      throw new AppError(
+        "Missing required field: orderId",
+        400
+      );
+    }
+
+    const data = await markPartnerArrived(
+      orderId
+    );
+
+    return successResponse({
+      res,
+      code: 200,
+      msg: "Arrival notification sent",
+      data,
+    });
+  }
+);

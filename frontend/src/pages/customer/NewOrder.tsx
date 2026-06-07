@@ -5,6 +5,7 @@ import { showSuccess, showError } from '../../utils/toast';
 import { Package, MapPin, CreditCard, Info, ArrowRight, Banknote, Smartphone, AlertCircle } from 'lucide-react';
 import { createOrder } from '../../services/orders';
 import { getEligibility } from '../../services/orders';
+import { cashPayment } from '../../services/payments'; // FIX: import cashPayment
 import http from '../../api/http';
 import { Btn, Card, Spinner } from '../../components/index';
 import { saveOrder } from '../../utils/helpers';
@@ -89,7 +90,19 @@ export default function NewOrder() {
         createdAt: new Date().toISOString(),
       });
 
-      showSuccess('Order placed!');
+      // FIX: For CASH orders, immediately call POST /api/payments/cash after
+      // order creation. This triggers handleCashPayment() on the backend which
+      // sets order.status = CONFIRMED and assigns a delivery partner.
+      // Without this call the order stays at PLACED forever — cashPayment() was
+      // never called from this page, only UPI had a payment action (via the Pay
+      // button in OrderDetail). UPI flow is unchanged.
+      if (method === 'CASH') {
+        await cashPayment(orderId);
+        showSuccess('Order placed! Cash on delivery confirmed.');
+      } else {
+        showSuccess('Order placed!');
+      }
+
       navigate(`/orders/${orderId}`);
     } catch (e: any) {
       showError(e?.message ?? 'Failed to place order');

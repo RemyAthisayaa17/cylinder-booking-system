@@ -3,6 +3,7 @@ import {
   assignPartnerController,
   startDeliveryController,
   completeDeliveryController,
+  arrivedController,
   getAssignedOrdersController
 } from "../controllers/deliveryController";
 import { authMiddleware } from "../middleware/authMiddleware";
@@ -31,6 +32,13 @@ router.post(
   authMiddleware,
   authorizeRoles("DELIVERY_PARTNER"),
   startDeliveryController
+);
+
+router.post(
+  "/arrived",
+  authMiddleware,
+  authorizeRoles("DELIVERY_PARTNER"),
+  arrivedController
 );
 
 router.post(

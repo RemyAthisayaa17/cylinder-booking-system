@@ -1,4 +1,4 @@
-const ADMIN_PHONE = "9123456780";
+const ADMIN_PHONE = process.env.ADMIN_PHONE;
 
 export const isAdminPhone = (phone: string) => {
   return phone === ADMIN_PHONE;

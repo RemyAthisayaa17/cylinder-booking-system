@@ -179,12 +179,12 @@ model Payment {
 
   retryCount Int @default(0)
 
-  // ── Refund tracking ──────────────────────────────────────
+  
   refundStatus      RefundStatus    @default(NOT_REQUIRED)
   refundInitiatedAt DateTime?
   refundEligibleAt  DateTime?
   refundCompletedAt DateTime?
-  // ────────────────────────────────────────────────────────
+  
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -84,9 +84,7 @@ export interface CreateOrderData {
   amount:  number;
 }
 
-// GET /api/orders/:orderId → full order with includes
-// includes: customer, payment, invoice, deliveryTracking
-// NOTE: partner object NOT included — only partnerId string
+
 export interface Order {
   id:               string;
   customerId:       string;
@@ -137,14 +135,17 @@ export interface Payment {
 }
 
 export interface DeliveryTracking {
-  id:        string;
-  orderId:   string;
+  id: string;
+  orderId: string;
   partnerId: string;
-  status:    DeliveryStatus;
+  status: DeliveryStatus;
   createdAt: string;
   updatedAt: string;
-}
 
+  beforePhoto?: string | null;
+  afterPhoto?: string | null;
+  signaturePhoto?: string | null;
+}
 // invoice nested on Order (summary, no nested relations)
 export interface InvoiceSummary {
   id:             string;

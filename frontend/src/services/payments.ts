@@ -15,13 +15,8 @@ export const retryPayment = async (orderId: string) => {
   return res.data;
 };
 
-/**
- * COLLECT CASH PAYMENT
- * PATCH /api/payments/collect-cash/:orderId
- * Called by delivery partner after arriving at customer and physically
- * collecting cash. Backend requires DeliveryTracking.status = ARRIVED.
- */
+
 export const collectCashPayment = async (orderId: string) => {
-  const res = await http.patch(`/api/payments/collect-cash/${orderId}`);
+  const res = await http.post('/api/payments/collect-cash', { orderId });
   return res.data;
 };

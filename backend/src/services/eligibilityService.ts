@@ -1,15 +1,6 @@
 import prisma from "../config/db";
 import { AppError } from "../utils/AppError";
 
-/**
- * ELIGIBILITY RULES:
- * DOMESTIC:
- *  - Urban: 25 days gap between deliveries
- *  - Rural: 45 days gap
- * COMMERCIAL:
- *  - No restriction
- */
-
 export const checkEligibility = async (customerId: string) => {
   const customer = await prisma.customer.findUnique({
     where: { id: customerId }

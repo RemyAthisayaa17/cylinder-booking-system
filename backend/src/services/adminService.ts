@@ -23,7 +23,6 @@ export const getPartnersService = async () => {
 
 /**
  * GET AUTO ASSIGNMENT LOG (ADMIN ONLY)
- * PRD §2: Returns assignment history with order + customer + partner details
  */
 export const getAutoAssignmentLogService = async () => {
   const logs = await prisma.auditLog.findMany({

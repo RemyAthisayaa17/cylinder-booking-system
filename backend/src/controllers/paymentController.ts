@@ -54,17 +54,24 @@ export const retryPaymentController = asyncHandler(
  */
 export const collectCashPaymentController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
-    const orderId   = String(req.params.orderId);
+    const orderId = req.body.orderId;   // ✅ FIXED
     const partnerId = req.user?.id as string;
 
     if (!orderId) {
-      throw new AppError("Missing orderId in path", 400);
+      throw new AppError("Missing orderId in request body", 400);
     }
+
     if (!partnerId) {
       throw new AppError("Unauthorized", 401);
     }
 
     const data = await collectCashPayment(orderId, partnerId);
-    return successResponse({ res, code: 200, msg: "Cash collected successfully", data });
+
+    return successResponse({
+      res,
+      code: 200,
+      msg: "Cash collected successfully",
+      data,
+    });
   }
 );

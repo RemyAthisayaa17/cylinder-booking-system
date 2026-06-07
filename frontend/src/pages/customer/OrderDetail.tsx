@@ -2,17 +2,20 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Package, MapPin, CreditCard,
-  CheckCircle, Clock, FileText, RefreshCw, RotateCcw,
+  CheckCircle, Clock, FileText, RefreshCw,
 } from 'lucide-react';
+
 import { showSuccess, showError } from '../../utils/toast';
 import { getOrder, cancelOrder } from '../../services/orders';
 import { processPayment, retryPayment } from '../../services/payments';
 import { Btn, Badge, Spinner, Card } from '../../components/index';
 import PaymentModal from '../../components/PaymentModal';
+
 import {
   statusBadge, payBadge, money, fmtDateTime,
   shortId, cylinderLabel, updateCachedOrder,
 } from '../../utils/helpers';
+
 import { useAuth } from '../../context/AuthContext';
 import type { Order, RefundStatus } from '../../types';
 
@@ -22,8 +25,8 @@ const STEPS = [
 
 const refundBadge: Record<RefundStatus, { label: string; cls: string }> = {
   NOT_REQUIRED: { label: 'Not Required', cls: 'bg-gray-100 text-gray-500' },
-  PENDING:      { label: 'Pending',      cls: 'bg-yellow-100 text-yellow-700' },
-  COMPLETED:    { label: 'Completed',    cls: 'bg-green-100 text-green-700' },
+  PENDING:      { label: 'Pending', cls: 'bg-yellow-100 text-yellow-700' },
+  COMPLETED:    { label: 'Completed', cls: 'bg-green-100 text-green-700' },
 };
 
 export default function OrderDetail() {
@@ -37,16 +40,19 @@ export default function OrderDetail() {
   const [paymentOpen, setPaymentOpen] = useState(false);
 
   const isCustomer = role === 'CUSTOMER';
+  const isDeliveryPartner = role === 'DELIVERY_PARTNER';
 
   const load = useCallback(async () => {
     if (!orderId) return;
+
     try {
       const res = await getOrder(orderId);
       setOrder(res.data);
+
       updateCachedOrder(orderId, {
-        status:        res.data.status,
+        status: res.data.status,
         paymentStatus: res.data.paymentStatus,
-        amount:        res.data.amountDue,
+        amount: res.data.amountDue,
       });
     } catch {
       showError('Could not load order');
@@ -75,7 +81,9 @@ export default function OrderDetail() {
     return (
       <div className="text-center py-20">
         <p className="text-gray-500 mb-4">Order not found</p>
-        <Btn variant="ghost" onClick={() => navigate('/orders')}>← Back</Btn>
+        <Btn variant="ghost" onClick={() => navigate('/orders')}>
+          ← Back
+        </Btn>
       </div>
     );
   }
@@ -87,7 +95,6 @@ export default function OrderDetail() {
   const invoiceReady =
     order.paymentStatus === 'SUCCESS' && order.status === 'DELIVERED';
 
-  // UPI only — cash has no customer-side payment action
   const canPayUpi =
     isCustomer &&
     order.paymentMethod !== 'CASH' &&
@@ -99,45 +106,75 @@ export default function OrderDetail() {
     ['PLACED', 'CONFIRMED'].includes(order.status);
 
   const refundStatus = order.payment?.refundStatus as RefundStatus | undefined;
-  const showRefund = refundStatus != null && refundStatus !== 'NOT_REQUIRED';
 
-  // DB retry count — passed to modal as source of truth
+  const showRefund =
+    refundStatus != null && refundStatus !== 'NOT_REQUIRED';
+
   const dbRetryCount = order.payment?.retryCount ?? 0;
+
+  // ─────────────────────────────────────────────
+  // DELIVERY FLOW (FIXED - NO LOOPHOLE)
+  // ─────────────────────────────────────────────
+
+  const delivery = order.deliveryTracking;
+
+  // ✅ FIX: DO NOT rely on photos (backend truth is status)
+  const proofUploaded =
+    delivery?.status === 'DELIVERED';
+
+  const canUploadProof =
+    isDeliveryPartner &&
+    order.status === 'OUT_FOR_DELIVERY';
+
+  const canCollectCash =
+    isDeliveryPartner &&
+    order.status === 'DELIVERED' &&
+    order.paymentMethod === 'CASH' &&
+    order.paymentStatus === 'PENDING' &&
+    proofUploaded;
 
   return (
     <div className="max-w-2xl mx-auto">
 
+      {/* HEADER */}
       <div className="flex items-center gap-3 mb-6">
         <Btn variant="ghost" onClick={() => navigate(-1)} icon={<ArrowLeft size={16} />}>
           Back
         </Btn>
+
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-900">Order #{shortId(order.id)}</h1>
-          <p className="text-sm text-gray-500">{fmtDateTime(order.createdAt)}</p>
+          <h1 className="text-xl font-bold">
+            Order #{shortId(order.id)}
+          </h1>
+          <p className="text-sm text-gray-500">
+            {fmtDateTime(order.createdAt)}
+          </p>
         </div>
+
         <Badge label={s.label} cls={s.cls} />
       </div>
 
+      {/* PROGRESS */}
       {order.status !== 'CANCELLED' && (
         <Card className="mb-5">
-          <p className="text-sm font-bold text-gray-800 mb-5">Order Progress</p>
-          <div className="flex justify-between relative">
+          <p className="text-sm font-bold mb-5">Order Progress</p>
+
+          <div className="flex justify-between">
             {STEPS.map((step, i) => {
-              const done    = i <= cur;
+              const done = i <= cur;
               const current = i === cur;
+
               return (
-                <div key={step} className="flex flex-col items-center flex-1 relative">
-                  {i < STEPS.length - 1 && (
-                    <div className={`absolute top-4 left-1/2 w-full h-0.5 ${i < cur ? 'bg-brand-500' : 'bg-gray-100'}`} />
-                  )}
-                  <div className={`relative z-10 w-8 h-8 rounded-full border-2 flex items-center justify-center ${
-                    done ? 'bg-brand-600 border-brand-600' : 'bg-white border-gray-200'
-                  } ${current ? 'ring-4 ring-brand-100' : ''}`}>
+                <div key={step} className="flex flex-col items-center flex-1">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                    done ? 'bg-brand-600 border-brand-600' : 'bg-white'
+                  }`}>
                     {done
-                      ? <CheckCircle size={13} className="text-white" />
-                      : <Clock size={13} className="text-gray-300" />}
+                      ? <CheckCircle size={12} className="text-white" />
+                      : <Clock size={12} />}
                   </div>
-                  <p className={`text-xs mt-2 font-medium text-center leading-tight ${done ? 'text-brand-600' : 'text-gray-400'}`}>
+
+                  <p className="text-xs mt-2">
                     {statusBadge[step].label}
                   </p>
                 </div>
@@ -147,94 +184,64 @@ export default function OrderDetail() {
         </Card>
       )}
 
+      {/* DETAILS */}
       <div className="grid md:grid-cols-2 gap-5">
+
         <Card>
-          <p className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Package size={14} className="text-brand-600" /> Order Details
+          <p className="font-bold mb-3 flex items-center gap-2">
+            <Package size={14} /> Order Details
           </p>
-          <dl className="space-y-2.5 text-sm">
-            <Row label="Cylinder">{cylinderLabel[order.cylinderType]}</Row>
-            <Row label="Quantity">{order.quantity}</Row>
-            <Row label="Amount Due">
-              <span className="font-bold text-brand-700">{money(order.amountDue)}</span>
+
+          <dl className="space-y-2 text-sm">
+            <Row label="Cylinder">
+              {cylinderLabel[order.cylinderType]}
             </Row>
-            {order.amountPaid > 0 && (
-              <Row label="Amount Paid">
-                <span className="text-green-700 font-semibold">{money(order.amountPaid)}</span>
-              </Row>
-            )}
-            <Row label="Payment Method">{order.paymentMethod ?? '—'}</Row>
-            <Row label="Payment"><Badge label={p.label} cls={p.cls} /></Row>
-            {order.paymentMethod === 'CASH' && order.paymentStatus === 'PENDING' && (
-              <Row label="">
-                <span className="text-xs text-amber-600 font-medium">
-                  Cash collected by delivery partner on delivery
-                </span>
-              </Row>
-            )}
+
+            <Row label="Quantity">
+              {order.quantity}
+            </Row>
+
+            <Row label="Amount Due">
+              <b>{money(order.amountDue)}</b>
+            </Row>
+
+            <Row label="Payment Method">
+              {order.paymentMethod ?? '—'}
+            </Row>
+
+            <Row label="Payment">
+              <Badge label={p.label} cls={p.cls} />
+            </Row>
           </dl>
         </Card>
 
         <Card>
-          <p className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <MapPin size={14} className="text-brand-600" /> Delivery Info
+          <p className="font-bold mb-3 flex items-center gap-2">
+            <MapPin size={14} /> Delivery Info
           </p>
-          <dl className="space-y-2.5 text-sm">
-            <div>
-              <dt className="text-gray-400 text-xs mb-0.5">Address</dt>
-              <dd className="font-medium text-gray-800">{order.deliveryAddress}</dd>
-            </div>
-          </dl>
+
+          <p className="text-sm text-gray-700">
+            {order.deliveryAddress}
+          </p>
         </Card>
       </div>
 
-      {showRefund && order.payment && (
-        <Card className="mt-5 border border-yellow-100 bg-yellow-50/40">
-          <p className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <RotateCcw size={14} className="text-yellow-600" /> Refund Details
-          </p>
-          <dl className="space-y-2.5 text-sm">
-            <Row label="Refund Status">
-              <Badge label={refundBadge[refundStatus!].label} cls={refundBadge[refundStatus!].cls} />
-            </Row>
-            {order.payment.refundInitiatedAt && (
-              <Row label="Initiated At">{fmtDateTime(order.payment.refundInitiatedAt)}</Row>
-            )}
-            {order.payment.refundCompletedAt && (
-              <Row label="Completed At">{fmtDateTime(order.payment.refundCompletedAt)}</Row>
-            )}
-            <Row label="Refund Amount">
-              <span className="font-semibold text-gray-900">{money(order.payment.amount)}</span>
-            </Row>
-          </dl>
-          {refundStatus === 'PENDING' && (
-            <p className="mt-4 text-xs text-yellow-700 bg-yellow-100 rounded-xl px-3 py-2">
-              Refund initiated successfully. Expected processing time: 24-48 hours.
-            </p>
-          )}
-          {refundStatus === 'COMPLETED' && (
-            <p className="mt-4 text-xs text-green-700 bg-green-100 rounded-xl px-3 py-2">
-              Your refund has been processed successfully.
-            </p>
-          )}
-        </Card>
-      )}
-
+      {/* CUSTOMER ACTIONS */}
       {isCustomer && (
         <Card className="mt-5">
-          <p className="text-sm font-bold text-gray-800 mb-4">Actions</p>
-          <div className="flex flex-wrap gap-3">
+          <p className="font-bold mb-3">Actions</p>
+
+          <div className="flex gap-3 flex-wrap">
 
             {canPayUpi && (
-              <Btn icon={<CreditCard size={14} />} onClick={() => setPaymentOpen(true)}>
-                Process UPI Payment
+              <Btn onClick={() => setPaymentOpen(true)}>
+                Pay UPI
               </Btn>
             )}
 
             {invoiceReady && (
               <Btn
                 variant="secondary"
-                icon={<FileText size={14} />}
                 onClick={() => navigate(`/invoices/${order.id}`)}
               >
                 View Invoice
@@ -246,27 +253,51 @@ export default function OrderDetail() {
                 loading={busy === 'cancel'}
                 onClick={() =>
                   act('cancel', async () => {
-                    const res = await cancelOrder(order.id);
-                    if (res.data.refundMessage) {
-                      showSuccess(res.data.refundMessage);
-                    } else {
-                      showSuccess('Order cancelled successfully');
-                    }
+                    await cancelOrder(order.id);
+                    showSuccess('Order cancelled');
                     navigate('/orders');
                   })
                 }
               >
-                Cancel Order
+                Cancel
               </Btn>
             )}
 
-            <Btn variant="ghost" onClick={load} icon={<RefreshCw size={14} />}>
+            <Btn variant="ghost" onClick={load}>
               Refresh
             </Btn>
           </div>
         </Card>
       )}
 
+      {/* DELIVERY ACTIONS (FIXED ORDER: UPLOAD → CASH) */}
+      {isDeliveryPartner && (
+        <Card className="mt-5">
+          <p className="font-bold mb-3">Delivery Actions</p>
+
+          <div className="flex gap-3 flex-wrap">
+
+            {/* 1️⃣ FIRST */}
+            {canUploadProof && (
+              <Btn onClick={() =>
+                navigate(`/partner/delivery-proof/${order.id}`)
+              }>
+                Upload Proof
+              </Btn>
+            )}
+
+            {/* 2️⃣ SECOND */}
+            {canCollectCash && (
+              <Btn onClick={() => {/* call collect cash API */}}>
+                Collect Cash
+              </Btn>
+            )}
+
+          </div>
+        </Card>
+      )}
+
+      {/* PAYMENT MODAL */}
       <PaymentModal
         open={paymentOpen}
         amount={order.amountDue}
@@ -278,12 +309,12 @@ export default function OrderDetail() {
         }}
         onSuccess={async () => {
           await processPayment(order.id, 'UPI');
-          showSuccess('Payment successful!');
+          showSuccess('Payment successful');
           await load();
         }}
         onRetry={async () => {
           await retryPayment(order.id);
-          showSuccess('Payment retry successful!');
+          showSuccess('Retry successful');
           await load();
         }}
       />
@@ -291,11 +322,11 @@ export default function OrderDetail() {
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children }: any) {
   return (
-    <div className="flex justify-between items-center">
-      <dt className="text-gray-500">{label}</dt>
-      <dd className="font-medium text-gray-900 text-right">{children}</dd>
+    <div className="flex justify-between">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-medium">{children}</span>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   PartnerStatus,
   DeliveryStatus,
 } from "@prisma/client";
+import { generateInvoice } from "./invoiceService";
 import { AppError } from "../utils/AppError";
 
 // ─────────────────────────────────────────────────────────────
@@ -108,8 +109,8 @@ const handleUpiPayment = async (orderId: string) => {
   }
 
   // MOCK GATEWAY: always fails for testing retry flow
-   const paymentSuccess = Math.random() < 0.85;
-  // const paymentSuccess = false;
+  const paymentSuccess = Math.random() < 0.85;
+  //const paymentSuccess = false;
 
   if (!paymentSuccess) {
     await prisma.payment.upsert({
@@ -194,10 +195,9 @@ const handleCashPayment = async (orderId: string) => {
   await prisma.payment.upsert({
     where:  { orderId },
     update: {
-      method:    PaymentMethod.CASH,
-      status:    PaymentStatus.PENDING,
-      amountPaid: 0,
-    } as any,
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PENDING,
+    },
     create: {
       orderId,
       amount:        order.amountDue,
@@ -427,21 +427,27 @@ export const collectCashPayment = async (
     },
   });
 
-  await prisma.auditLog.create({
-    data: {
-      orderId,
-      action:     "CASH_COLLECTED",
-      fromStatus: OrderStatus.DELIVERED,
-      toStatus:   OrderStatus.DELIVERED,
-      message:    `Cash ₹${order.amountDue} collected by partner ${partnerId}.`,
-    },
-  });
-
-  return {
-    message:       "Cash payment collected successfully.",
+ await prisma.auditLog.create({
+  data: {
     orderId,
-    paymentStatus: PaymentStatus.SUCCESS,
-    collectedBy:   partnerId,
-    collectedAt:   new Date().toISOString(),
-  };
+    action: "CASH_COLLECTED",
+    fromStatus: OrderStatus.DELIVERED,
+    toStatus: OrderStatus.DELIVERED,
+    message: `Cash ₹${order.amountDue} collected by partner ${partnerId}.`,
+  },
+});
+
+try {
+  await generateInvoice(orderId);
+} catch (error) {
+  console.error("INVOICE GENERATION FAILED:", error);
+}
+
+return {
+  message: "Cash payment collected successfully.",
+  orderId,
+  paymentStatus: PaymentStatus.SUCCESS,
+  collectedBy: partnerId,
+  collectedAt: new Date().toISOString(),
+};
 };

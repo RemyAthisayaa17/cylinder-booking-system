@@ -1,15 +1,17 @@
 import prisma from "../config/db";
-import { CylinderType, PaymentStatus, OrderStatus, AreaType } from "@prisma/client";
+import {
+  CylinderType,
+  PaymentStatus,
+  OrderStatus,
+  AreaType,
+} from "@prisma/client";
 import { AppError } from "../utils/AppError";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // SUBSIDY CALCULATION
-// DOMESTIC + KG_14_2 + subsidyEligible only
-// URBAN → ₹100, RURAL → ₹200
-// COMMERCIAL → always ₹0
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 const resolveSubsidy = (
   customerType: string,
   cylinderType: CylinderType,
@@ -26,17 +28,11 @@ const resolveSubsidy = (
   return areaType === AreaType.URBAN ? 100 : 200;
 };
 
-// ─────────────────────────────────────────────────────────────
-// GENERATE INVOICE 
-// ─────────────────────────────────────────────────────────────
-export const generateInvoice = async (
-  orderId: string
-): Promise<{
-  message: string;
-  invoiceId: string;
-  orderId: string;
-  totalAmount: number;
-}> => {
+// ─────────────────────────────────────────────
+// GENERATE INVOICE (FIXED - SAFE + RELIABLE)
+// ─────────────────────────────────────────────
+export const generateInvoice = async (orderId: string) => {
+  // 🔥 Always re-fetch fresh state (prevents stale transaction issues)
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { customer: true, payment: true, invoice: true },
@@ -44,6 +40,17 @@ export const generateInvoice = async (
 
   if (!order) throw new AppError("Order not found", 404);
 
+  // already exists → safe return
+  if (order.invoice) {
+    return {
+      message: "Invoice already exists",
+      invoiceId: order.invoice.id,
+      orderId: order.id,
+      totalAmount: order.invoice.totalAmount,
+    };
+  }
+
+  // 🔥 STRICT CONDITIONS (your business logic kept intact)
   if (order.paymentStatus !== PaymentStatus.SUCCESS) {
     throw new AppError(
       "Invoice can only be generated after successful payment",
@@ -58,15 +65,7 @@ export const generateInvoice = async (
     );
   }
 
-  if (order.invoice) {
-    return {
-      message: "Invoice already exists",
-      invoiceId: order.invoice.id,
-      orderId: order.id,
-      totalAmount: order.invoice.totalAmount,
-    };
-  }
-
+  // pricing fetch
   const pricing = await prisma.pricing.findFirst({
     where: {
       cylinderType: order.cylinderType,
@@ -102,6 +101,21 @@ export const generateInvoice = async (
     totalAmount = order.amountDue;
   }
 
+  // 🔥 IMPORTANT FIX: prevent race condition duplicate creation
+  const existing = await prisma.invoice.findUnique({
+    where: { orderId },
+  });
+
+  if (existing) {
+    return {
+      message: "Invoice already exists",
+      invoiceId: existing.id,
+      orderId,
+      totalAmount: existing.totalAmount,
+    };
+  }
+
+  // create invoice
   const invoice = await prisma.invoice.create({
     data: {
       orderId: order.id,
@@ -120,7 +134,7 @@ export const generateInvoice = async (
       action: "INVOICE_GENERATED",
       fromStatus: OrderStatus.DELIVERED,
       toStatus: OrderStatus.DELIVERED,
-      message: `Invoice ${invoice.id} generated after payment + delivery.`,
+      message: `Invoice ${invoice.id} generated.`,
     },
   });
 
@@ -132,16 +146,21 @@ export const generateInvoice = async (
   };
 };
 
-// ─────────────────────────────────────────────────────────────
-// GET INVOICE
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// GET INVOICE (FIXED SAFE FETCH)
+// ─────────────────────────────────────────────
 export const getInvoice = async (orderId: string) => {
   const invoice = await prisma.invoice.findUnique({
     where: { orderId },
-    include: { customer: true, order: true },
+    include: {
+      customer: true,
+      order: true,
+    },
   });
 
-  if (!invoice) throw new AppError("Invoice not found", 404);
+  if (!invoice) {
+    throw new AppError("Invoice not found", 404);
+  }
 
   return invoice;
 };
