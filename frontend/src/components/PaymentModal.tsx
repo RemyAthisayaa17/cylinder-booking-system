@@ -168,8 +168,7 @@ export default function PaymentModal({
                 Transaction could not be completed.
               </p>
               <Btn className="w-full" onClick={handleRetry}>
-                Retry Payment ({remaining} attempt
-                {remaining !== 1 ? 's' : ''} left)
+                Retry Payment (Maximum 3 try)
               </Btn>
             </div>
           )}
