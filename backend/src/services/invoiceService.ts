@@ -1,7 +1,6 @@
 import prisma from "../config/db";
 import {
   CylinderType,
-  PaymentStatus,
   OrderStatus,
   AreaType,
 } from "@prisma/client";
@@ -9,9 +8,6 @@ import { AppError } from "../utils/AppError";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-// ─────────────────────────────────────────────
-// SUBSIDY CALCULATION
-// ─────────────────────────────────────────────
 const resolveSubsidy = (
   customerType: string,
   cylinderType: CylinderType,
@@ -29,10 +25,9 @@ const resolveSubsidy = (
 };
 
 // ─────────────────────────────────────────────
-// GENERATE INVOICE (FIXED - SAFE + RELIABLE)
+// GENERATE INVOICE — idempotent, race-safe
 // ─────────────────────────────────────────────
 export const generateInvoice = async (orderId: string) => {
-  // 🔥 Always re-fetch fresh state (prevents stale transaction issues)
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { customer: true, payment: true, invoice: true },
@@ -40,7 +35,7 @@ export const generateInvoice = async (orderId: string) => {
 
   if (!order) throw new AppError("Order not found", 404);
 
-  // already exists → safe return
+  // Fast-path: invoice already exists → return it without re-computing
   if (order.invoice) {
     return {
       message: "Invoice already exists",
@@ -50,22 +45,13 @@ export const generateInvoice = async (orderId: string) => {
     };
   }
 
-  // 🔥 STRICT CONDITIONS (your business logic kept intact)
-  if (order.paymentStatus !== PaymentStatus.SUCCESS) {
-    throw new AppError(
-      "Invoice can only be generated after successful payment",
-      409
-    );
-  }
-
   if (order.status !== OrderStatus.DELIVERED) {
     throw new AppError(
-      "Invoice can only be generated after delivery is completed",
+      "Invoice can only be generated after delivery completion",
       409
     );
   }
 
-  // pricing fetch
   const pricing = await prisma.pricing.findFirst({
     where: {
       cylinderType: order.cylinderType,
@@ -74,93 +60,94 @@ export const generateInvoice = async (orderId: string) => {
     orderBy: { effectiveDate: "desc" },
   });
 
-  let cylinderPrice: number;
-  let deliveryCharge: number;
-  let tax: number;
-  let subsidy: number;
-  let totalAmount: number;
+  let cylinderPrice = 0;
+  let deliveryCharge = 0;
+  let tax = 0;
+  let subsidy = 0;
+  let totalAmount = 0;
 
   if (pricing) {
     cylinderPrice = round2(pricing.basePrice * order.quantity);
     deliveryCharge = round2(pricing.deliveryCharge);
     tax = round2((cylinderPrice * pricing.taxPercentage) / 100);
-
     subsidy = resolveSubsidy(
       order.customer.customerType,
       order.cylinderType,
       order.customer.areaType,
       order.customer.subsidyEligible
     );
-
     totalAmount = round2(cylinderPrice + deliveryCharge + tax - subsidy);
   } else {
-    cylinderPrice = order.amountDue;
-    deliveryCharge = 0;
-    tax = 0;
-    subsidy = 0;
     totalAmount = order.amountDue;
   }
 
-  // 🔥 IMPORTANT FIX: prevent race condition duplicate creation
-  const existing = await prisma.invoice.findUnique({
-    where: { orderId },
-  });
+  // Race-safe: use upsert so concurrent calls don't create duplicate invoices
+  // (Invoice.orderId is @unique so only one row can ever exist)
+  try {
+    const invoice = await prisma.invoice.upsert({
+      where: { orderId },
+      update: {}, // if it exists, leave it untouched
+      create: {
+        orderId: order.id,
+        customerId: order.customerId,
+        cylinderPrice,
+        deliveryCharge,
+        tax,
+        subsidy,
+        totalAmount,
+      },
+    });
 
-  if (existing) {
+    // Only log when we created fresh (detect via comparing createdAt ≈ now)
+    const isNew =
+      Math.abs(new Date(invoice.createdAt).getTime() - Date.now()) < 5000;
+
+    if (isNew) {
+      await prisma.auditLog.create({
+        data: {
+          orderId,
+          action: "INVOICE_GENERATED",
+          fromStatus: OrderStatus.DELIVERED,
+          toStatus: OrderStatus.DELIVERED,
+          message: `Invoice generated: ₹${invoice.totalAmount}`,
+        },
+      }).catch(() => {/* audit failure must not block invoice response */});
+    }
+
     return {
-      message: "Invoice already exists",
-      invoiceId: existing.id,
-      orderId,
-      totalAmount: existing.totalAmount,
-    };
-  }
-
-  // create invoice
-  const invoice = await prisma.invoice.create({
-    data: {
+      message: isNew ? "Invoice generated successfully" : "Invoice already exists",
+      invoiceId: invoice.id,
       orderId: order.id,
-      customerId: order.customerId,
-      cylinderPrice,
-      deliveryCharge,
-      tax,
-      subsidy,
-      totalAmount,
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      orderId,
-      action: "INVOICE_GENERATED",
-      fromStatus: OrderStatus.DELIVERED,
-      toStatus: OrderStatus.DELIVERED,
-      message: `Invoice ${invoice.id} generated.`,
-    },
-  });
-
-  return {
-    message: "Invoice generated successfully",
-    invoiceId: invoice.id,
-    orderId: order.id,
-    totalAmount: invoice.totalAmount,
-  };
+      totalAmount: invoice.totalAmount,
+    };
+  } catch (err: unknown) {
+    // P2002 = unique constraint → concurrent request already created it
+    const prismaErr = err as { code?: string };
+    if (prismaErr?.code === "P2002") {
+      const existing = await prisma.invoice.findUnique({ where: { orderId } });
+      if (existing) {
+        return {
+          message: "Invoice already exists",
+          invoiceId: existing.id,
+          orderId,
+          totalAmount: existing.totalAmount,
+        };
+      }
+    }
+    throw err;
+  }
 };
 
 // ─────────────────────────────────────────────
-// GET INVOICE (FIXED SAFE FETCH)
+// GET INVOICE BY ORDER ID
 // ─────────────────────────────────────────────
 export const getInvoice = async (orderId: string) => {
   const invoice = await prisma.invoice.findUnique({
     where: { orderId },
-    include: {
-      customer: true,
-      order: true,
-    },
+    include: { customer: true, order: true },
   });
 
-  if (!invoice) {
-    throw new AppError("Invoice not found", 404);
-  }
+  if (!invoice) throw new AppError("Invoice not found", 404);
 
   return invoice;
 };

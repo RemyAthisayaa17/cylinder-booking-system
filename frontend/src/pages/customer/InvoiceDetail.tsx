@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { showSuccess, showError } from '../../utils/toast';
+import { showError } from '../../utils/toast';
 import { ArrowLeft, Flame } from 'lucide-react';
 import { getInvoice } from '../../services/invoices';
 import { Btn, Spinner } from '../../components/index';
@@ -10,36 +10,56 @@ import type { Invoice } from '../../types';
 export default function InvoiceDetail() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const [inv, setInv]         = useState<Invoice | null>(null);
+
+  const [inv, setInv] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!orderId) return;
-    getInvoice(orderId)
-      .then(res => setInv(res.data))
-      .catch(() => showError('Invoice not found'))
-      .finally(() => setLoading(false));
+
+    (async () => {
+      try {
+        // getInvoice returns ApiResponse<Invoice> — .data is the Invoice object
+        const envelope = await getInvoice(orderId);
+        const invoice = envelope?.data ?? null;
+
+        if (!invoice) {
+          showError('Invoice not available yet');
+          setInv(null);
+          return;
+        }
+        setInv(invoice);
+      } catch (err: any) {
+        const msg = err?.message ?? 'Invoice not found or not generated yet';
+        showError(msg);
+        setInv(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [orderId]);
 
   if (loading) return <Spinner />;
-  if (!inv) return (
-    <div className="text-center py-20">
-      <p className="text-gray-500 mb-4">Invoice not found</p>
-      <Btn variant="ghost" onClick={() => navigate(-1)}>← Back</Btn>
-    </div>
-  );
 
-  const bookingDate  = inv.order?.createdAt  ? fmtDateTime(inv.order.createdAt)  : '—';
-  const deliveryDate = inv.order?.updatedAt  ? fmtDateTime(inv.order.updatedAt)  : '—';
+  if (!inv) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-gray-500 mb-4">Invoice not found</p>
+        <Btn variant="ghost" onClick={() => navigate(-1)}>
+          ← Back
+        </Btn>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-xl mx-auto">
-      {/* Back only — no print/download buttons */}
       <div className="mb-6">
-        <Btn variant="ghost" onClick={() => navigate(-1)} icon={<ArrowLeft size={16} />}>Back</Btn>
+        <Btn variant="ghost" onClick={() => navigate(-1)} icon={<ArrowLeft size={16} />}>
+          Back
+        </Btn>
       </div>
 
-      {/* Invoice card */}
       <div className="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
 
         {/* Header */}
@@ -59,6 +79,7 @@ export default function InvoiceDetail() {
               <p className="font-mono text-sm font-bold">{shortId(inv.id)}</p>
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-brand-200 text-xs">Order ID</p>
@@ -71,110 +92,60 @@ export default function InvoiceDetail() {
           </div>
         </div>
 
-        {/* Bill to */}
-        <div className="px-7 py-5 border-b border-gray-100">
-          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-3">Bill To</p>
-          <p className="font-bold text-gray-900">{inv.customer.name}</p>
-          <p className="text-sm text-gray-500">{inv.customer.phone}</p>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {inv.customer.city}, {inv.customer.state}
-          </p>
-          <p className="text-xs text-gray-400 mt-0.5 capitalize">
-            {inv.customer.customerType.toLowerCase()} · {inv.customer.areaType.toLowerCase()}
-          </p>
-        </div>
-
-        {/* Order summary */}
+        {/* Dates */}
         {inv.order && (
-          <div className="px-7 py-5 border-b border-gray-100">
-            <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-3">Order Summary</p>
-            <div className="text-sm space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Cylinder</span>
-                <span className="font-medium">
-                  {inv.order.cylinderType.replace('KG_', '').replace('_', '.')} kg × {inv.order.quantity}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Delivery Address</span>
-                <span className="font-medium text-right max-w-[55%] text-xs">{inv.order.deliveryAddress}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Payment Method</span>
-                <span className="font-medium">{inv.order.paymentMethod ?? '—'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Booking Date</span>
-                <span className="font-medium text-xs">{bookingDate}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Delivery Date</span>
-                <span className="font-medium text-xs">{deliveryDate}</span>
-              </div>
+          <div className="px-7 pt-5 pb-0 grid grid-cols-2 gap-4 text-sm border-b border-gray-100 pb-5">
+            <div>
+              <p className="text-xs text-gray-400">Booking Date</p>
+              <p className="font-medium">{fmtDateTime(inv.order.createdAt)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Delivery Date</p>
+              <p className="font-medium">{fmtDateTime(inv.order.updatedAt)}</p>
             </div>
           </div>
         )}
 
-        {/* Amount breakdown */}
+        {/* Bill To */}
         <div className="px-7 py-5 border-b border-gray-100">
-          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-3">Amount Breakdown</p>
-          <div className="text-sm space-y-2.5">
-            <div className="flex justify-between text-gray-600">
-              <span>Base Price</span>
-              <span className="font-medium text-gray-900">{money(inv.cylinderPrice)}</span>
-            </div>
+          <p className="text-xs text-gray-400 uppercase font-semibold mb-3">Bill To</p>
+          <p className="font-bold">{inv.customer.name}</p>
+          <p className="text-sm text-gray-500">{inv.customer.phone}</p>
+          <p className="text-sm text-gray-500">
+            {inv.customer.city}, {inv.customer.state}
+          </p>
+        </div>
 
-            {inv.deliveryCharge > 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Delivery Charge</span>
-                <span className="font-medium text-gray-900">{money(inv.deliveryCharge)}</span>
-              </div>
-            )}
-            {inv.deliveryCharge === 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Delivery Charge</span>
-                <span className="font-medium text-green-600">FREE</span>
-              </div>
-            )}
-
-            {inv.tax > 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Tax (21%)</span>
-                <span className="font-medium text-gray-900">{money(inv.tax)}</span>
-              </div>
-            )}
-
-            {inv.subsidy > 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Subsidy</span>
-                <span className="font-medium text-green-600">− {money(inv.subsidy)}</span>
-              </div>
-            )}
-
-            <div className="pt-2 border-t border-gray-100 flex justify-between font-bold text-gray-900">
-              <span>Final Payable Amount</span>
-              <span>{money(inv.totalAmount)}</span>
-            </div>
+        {/* Line items */}
+        <div className="px-7 py-5 space-y-2 text-sm border-b border-gray-100">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Cylinder Price</span>
+            <span>{money(inv.cylinderPrice)}</span>
           </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Delivery Charge</span>
+            <span>{money(inv.deliveryCharge)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Tax</span>
+            <span>{money(inv.tax)}</span>
+          </div>
+          {inv.subsidy > 0 && (
+            <div className="flex justify-between text-green-700">
+              <span>Subsidy</span>
+              <span>− {money(inv.subsidy)}</span>
+            </div>
+          )}
         </div>
 
         {/* Total */}
         <div className="px-7 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Amount Paid</p>
-              <p className="text-xs text-green-600 font-medium mt-0.5">✓ Payment Successful</p>
-            </div>
-            <p className="text-3xl font-bold text-brand-700">{money(inv.totalAmount)}</p>
+          <div className="flex justify-between font-bold text-lg">
+            <span>Total Payable</span>
+            <span className="text-brand-700">{money(inv.totalAmount)}</span>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="bg-gray-50 px-7 py-4 text-center">
-          <p className="text-xs text-gray-400">
-            Thank you for choosing GasCylinder Booking. This is a computer-generated invoice.
-          </p>
-        </div>
       </div>
     </div>
   );

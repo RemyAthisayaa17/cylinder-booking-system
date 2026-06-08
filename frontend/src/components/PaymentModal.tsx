@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Loader2, CheckCircle2, AlertCircle, Banknote } from 'lucide-react';
 import { Btn } from './index';
 
 type Props = {
@@ -9,10 +9,16 @@ type Props = {
   onClose: () => void;
   onSuccess: () => Promise<void>;
   onRetry: () => Promise<void>;
-  retryCount?: number; // DB value — source of truth for limit enforcement
+  retryCount?: number;
 };
 
-type Status = 'IDLE' | 'PROCESSING' | 'SUCCESS' | 'FAILED' | 'RETRY_LIMIT';
+type Status =
+  | 'IDLE'
+  | 'PROCESSING'
+  | 'SUCCESS'
+  | 'FAILED'
+  | 'RETRY_LIMIT'
+  | 'CONVERTED_TO_CASH';
 
 const MAX_RETRIES = 3;
 
@@ -44,7 +50,7 @@ export default function PaymentModal({
   const handlePayment = async () => {
     try {
       setStatus('PROCESSING');
-      await new Promise(resolve => setTimeout(resolve, 2500));
+      await new Promise((resolve) => setTimeout(resolve, 2500));
       await onSuccess();
       setStatus('SUCCESS');
       setTimeout(() => onClose(), 1500);
@@ -60,13 +66,19 @@ export default function PaymentModal({
     }
     try {
       setStatus('PROCESSING');
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       await onRetry();
+      // Check if converted to cash
       setStatus('SUCCESS');
       setTimeout(() => onClose(), 1500);
     } catch (e: any) {
-      if (e?.status === 409 || retryCount + 1 >= MAX_RETRIES) {
-        setStatus('RETRY_LIMIT');
+      // Check if the response indicates cash conversion
+      if (
+        e?.data?.convertedToCash ||
+        e?.status === 409 ||
+        retryCount + 1 >= MAX_RETRIES
+      ) {
+        setStatus('CONVERTED_TO_CASH');
       } else {
         setStatus('FAILED');
       }
@@ -78,7 +90,6 @@ export default function PaymentModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
-
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h2 className="text-lg font-bold text-gray-900">UPI Payment</h2>
@@ -104,31 +115,48 @@ export default function PaymentModal({
             </div>
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm text-gray-500">Order ID</p>
-              <p className="font-mono text-xs text-gray-700">{orderId.slice(0, 10)}</p>
+              <p className="font-mono text-xs text-gray-700">
+                {orderId.slice(0, 10)}
+              </p>
             </div>
             <div className="flex items-center justify-between pt-3 border-t border-brand-100">
               <p className="text-sm text-gray-500">Amount</p>
-              <p className="text-2xl font-bold text-brand-700">₹{amount.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-brand-700">
+                ₹{amount.toFixed(2)}
+              </p>
             </div>
           </div>
 
           {status === 'IDLE' && (
-            <Btn className="w-full" onClick={handlePayment}>Pay Now</Btn>
+            <Btn className="w-full" onClick={handlePayment}>
+              Pay Now
+            </Btn>
           )}
 
           {status === 'PROCESSING' && (
             <div className="flex flex-col items-center py-6">
-              <Loader2 size={42} className="animate-spin text-brand-600 mb-4" />
-              <p className="font-semibold text-gray-800">Processing Payment...</p>
-              <p className="text-sm text-gray-500 mt-1">Please wait. Do not refresh.</p>
+              <Loader2
+                size={42}
+                className="animate-spin text-brand-600 mb-4"
+              />
+              <p className="font-semibold text-gray-800">
+                Processing Payment...
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Please wait. Do not refresh.
+              </p>
             </div>
           )}
 
           {status === 'SUCCESS' && (
             <div className="flex flex-col items-center py-6">
               <CheckCircle2 size={52} className="text-green-600 mb-4" />
-              <p className="font-bold text-green-700 text-lg">Payment Successful</p>
-              <p className="text-sm text-gray-500 mt-1">Order confirmed successfully</p>
+              <p className="font-bold text-green-700 text-lg">
+                Payment Successful
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Order confirmed successfully
+              </p>
             </div>
           )}
 
@@ -140,7 +168,8 @@ export default function PaymentModal({
                 Transaction could not be completed.
               </p>
               <Btn className="w-full" onClick={handleRetry}>
-                Retry Payment ({remaining} attempt{remaining !== 1 ? 's' : ''} left)
+                Retry Payment ({remaining} attempt
+                {remaining !== 1 ? 's' : ''} left)
               </Btn>
             </div>
           )}
@@ -150,8 +179,31 @@ export default function PaymentModal({
               <AlertCircle size={52} className="text-red-500 mb-4" />
               <p className="font-bold text-red-600 text-lg">Payment Failed</p>
               <p className="text-sm text-red-500 font-medium mt-2 text-center">
-                Retry limit reached. Please try again later or use Cash on Delivery.
+                Retry limit reached. Please try again later or use Cash on
+                Delivery.
               </p>
+              <Btn className="w-full mt-4" onClick={handleRetry}>
+                Convert to Cash on Delivery
+              </Btn>
+            </div>
+          )}
+
+          {status === 'CONVERTED_TO_CASH' && (
+            <div className="flex flex-col items-center py-4">
+              <Banknote size={52} className="text-amber-500 mb-4" />
+              <p className="font-bold text-amber-700 text-lg">
+                Switched to Cash on Delivery
+              </p>
+              <p className="text-sm text-amber-600 font-medium mt-2 text-center">
+                Maximum retry limit reached. Please pay cash during delivery.
+              </p>
+              <Btn
+                className="w-full mt-4"
+                variant="secondary"
+                onClick={onClose}
+              >
+                Got it
+              </Btn>
             </div>
           )}
         </div>

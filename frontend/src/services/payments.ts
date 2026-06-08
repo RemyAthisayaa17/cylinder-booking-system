@@ -15,7 +15,6 @@ export const retryPayment = async (orderId: string) => {
   return res.data;
 };
 
-
 export const collectCashPayment = async (orderId: string) => {
   const res = await http.post('/api/payments/collect-cash', { orderId });
   return res.data;

@@ -16,7 +16,12 @@ export const processPaymentController = asyncHandler(
       throw new AppError("Missing required fields: orderId, method", 400);
     }
     const data = await processPayment({ orderId, method });
-    return successResponse({ res, code: 200, msg: "Payment processed successfully", data });
+    return successResponse({
+      res,
+      code: 200,
+      msg: "Payment processed successfully",
+      data,
+    });
   }
 );
 
@@ -27,7 +32,12 @@ export const cashPaymentController = asyncHandler(
       throw new AppError("Missing required field: orderId", 400);
     }
     const data = await processPayment({ orderId, method: "CASH" });
-    return successResponse({ res, code: 200, msg: "Cash on delivery selected", data });
+    return successResponse({
+      res,
+      code: 200,
+      msg: "Cash on delivery selected",
+      data,
+    });
   }
 );
 
@@ -38,23 +48,26 @@ export const retryPaymentController = asyncHandler(
       throw new AppError("Missing required field: orderId", 400);
     }
     const data = await retryPayment(orderId);
-    return successResponse({ res, code: 200, msg: "Payment retry successful", data });
+    return successResponse({
+      res,
+      code: 200,
+    msg:
+  "convertedToCash" in data && data.convertedToCash
+    ? "Maximum retry limit reached. Please pay cash during delivery."
+    : "Payment retry successful",
+      data,
+    });
   }
 );
 
 /**
  * COLLECT CASH PAYMENT
- * PATCH /api/payments/collect-cash/:orderId
+ * POST /api/payments/collect-cash
  * Called by delivery partner after physically collecting cash from customer.
- * Requirements (enforced in service):
- *   - Order.status = OUT_FOR_DELIVERY
- *   - DeliveryTracking.status = ARRIVED
- *   - paymentMethod = CASH
- *   - paymentStatus != SUCCESS (not already collected)
  */
 export const collectCashPaymentController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
-    const orderId = req.body.orderId;   // ✅ FIXED
+    const orderId = req.body.orderId;
     const partnerId = req.user?.id as string;
 
     if (!orderId) {

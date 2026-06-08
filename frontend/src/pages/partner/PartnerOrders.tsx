@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { showSuccess, showError } from '../../utils/toast';
-import { Truck, ChevronRight, Camera, CheckCircle, Navigation, Banknote } from 'lucide-react';
-import { getMyOrders, startDelivery ,markArrived} from '../../services/delivery';
-
+import {
+  Truck,
+  ChevronRight,
+  Camera,
+  CheckCircle,
+  Navigation,
+  Banknote,
+} from 'lucide-react';
+import { getMyOrders, startDelivery, markArrived } from '../../services/delivery';
 import { collectCashPayment } from '../../services/payments';
 import {
   Btn,
@@ -12,7 +18,6 @@ import {
   Badge,
   PageHeader,
 } from '../../components/index';
-
 import {
   statusBadge,
   cylinderLabel,
@@ -20,7 +25,6 @@ import {
   fmtDate,
   money,
 } from '../../utils/helpers';
-
 import type { Order } from '../../types';
 
 export default function PartnerOrders() {
@@ -32,21 +36,16 @@ export default function PartnerOrders() {
 
   function load() {
     setLoading(true);
-
     getMyOrders()
-      .then((res) => setOrders(res.data))
+      .then((res) => setOrders(res.data ?? []))
       .catch(() => showError('Could not load orders'))
       .finally(() => setLoading(false));
   }
 
   useEffect(load, []);
 
-  async function act(
-    key: string,
-    fn: () => Promise<unknown>
-  ) {
+  async function act(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
-
     try {
       await fn();
       load();
@@ -57,9 +56,7 @@ export default function PartnerOrders() {
     }
   }
 
-  if (loading) {
-    return <Spinner />;
-  }
+  if (loading) return <Spinner />;
 
   return (
     <div>
@@ -81,25 +78,14 @@ export default function PartnerOrders() {
           {orders.map((o) => {
             const s = statusBadge[o.status];
 
-            /**
-             * Show "Cash Collected" button ONLY when:
-             * - order is OUT_FOR_DELIVERY
-             * - paymentMethod is CASH
-             * - paymentStatus is PENDING (not yet collected)
-             */
+            // CASH: show "Cash Collected" button when cash not yet collected
             const showCashCollect =
-              o.status === 'OUT_FOR_DELIVERY' &&
-              o.paymentMethod === 'CASH' &&
-              o.paymentStatus === 'PENDING';
-
-            /**
-             * Show "Upload Proof" button when order is OUT_FOR_DELIVERY.
-             * For CASH orders, cash must be collected first (paymentStatus = SUCCESS)
-             * to ensure the backend validation passes.
-             */
-            const showUploadProof =
-              o.status === 'OUT_FOR_DELIVERY' &&
-              (o.paymentMethod !== 'CASH' || o.paymentStatus === 'SUCCESS');
+  o.status === 'DELIVERED' &&
+  o.paymentMethod === 'CASH' &&
+  o.paymentStatus === 'PENDING';
+            
+          const showUploadProof =
+  o.status === 'OUT_FOR_DELIVERY';
 
             return (
               <div
@@ -108,10 +94,7 @@ export default function PartnerOrders() {
               >
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
-                    <Truck
-                      size={17}
-                      className="text-brand-600"
-                    />
+                    <Truck size={17} className="text-brand-600" />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -119,16 +102,11 @@ export default function PartnerOrders() {
                       <p className="text-sm font-bold text-gray-900">
                         Order #{shortId(o.id)}
                       </p>
-
-                      <Badge
-                        label={s.label}
-                        cls={s.cls}
-                      />
+                      <Badge label={s.label} cls={s.cls} />
                     </div>
 
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {cylinderLabel[o.cylinderType]} ×{' '}
-                      {o.quantity}
+                      {cylinderLabel[o.cylinderType]} × {o.quantity}
                     </p>
 
                     <p className="text-xs text-gray-500 truncate mt-0.5">
@@ -146,25 +124,25 @@ export default function PartnerOrders() {
                         {fmtDate(o.createdAt)}
                       </p>
 
-                      {/* Payment method indicator */}
                       {o.paymentMethod && (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                          o.paymentMethod === 'CASH'
-                            ? o.paymentStatus === 'SUCCESS'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-amber-100 text-amber-700'
-                            : o.paymentStatus === 'SUCCESS'
+                        <span
+                          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                            o.paymentMethod === 'CASH'
+                              ? o.paymentStatus === 'SUCCESS'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-amber-100 text-amber-700'
+                              : o.paymentStatus === 'SUCCESS'
                               ? 'bg-green-100 text-green-700'
                               : 'bg-gray-100 text-gray-600'
-                        }`}>
+                          }`}
+                        >
                           {o.paymentMethod === 'CASH'
                             ? o.paymentStatus === 'SUCCESS'
                               ? '✓ Cash Collected'
                               : 'Cash on Delivery'
                             : o.paymentStatus === 'SUCCESS'
-                              ? '✓ UPI Paid'
-                              : 'UPI Pending'
-                          }
+                            ? '✓ UPI Paid'
+                            : 'UPI Pending'}
                         </span>
                       )}
 
@@ -185,12 +163,10 @@ export default function PartnerOrders() {
                       loading={busy === `start-${o.id}`}
                       icon={<Truck size={13} />}
                       onClick={() =>
-                        act(
-                          `start-${o.id}`,
-                          () =>
-                            startDelivery(o.id).then(() =>
-                              showSuccess('Delivery started!')
-                            )
+                        act(`start-${o.id}`, () =>
+                          startDelivery(o.id).then(() =>
+                            showSuccess('Delivery started!')
+                          )
                         )
                       }
                     >
@@ -198,8 +174,9 @@ export default function PartnerOrders() {
                     </Btn>
                   )}
 
-                  {/* NAVIGATE — show when ASSIGNED or OUT_FOR_DELIVERY */}
-                  {(o.status === 'ASSIGNED' || o.status === 'OUT_FOR_DELIVERY') && (
+                  {/* NAVIGATE */}
+                  {(o.status === 'ASSIGNED' ||
+                    o.status === 'OUT_FOR_DELIVERY') && (
                     <Btn
                       variant="ghost"
                       icon={<Navigation size={13} />}
@@ -217,40 +194,33 @@ export default function PartnerOrders() {
                       Navigate
                     </Btn>
                   )}
+
+                  {/* ARRIVED */}
                   {o.status === 'OUT_FOR_DELIVERY' && (
-  <Btn
-    loading={busy === `arrived-${o.id}`}
-    icon={<Navigation size={13} />}
-    onClick={() =>
-      act(
-        `arrived-${o.id}`,
-        async () => {
-          await markArrived(o.id);
+                    <Btn
+                      loading={busy === `arrived-${o.id}`}
+                      icon={<Navigation size={13} />}
+                      onClick={() =>
+                        act(`arrived-${o.id}`, async () => {
+                          await markArrived(o.id);
+                          showSuccess('Arrival notification sent to customer');
+                        })
+                      }
+                    >
+                      Arrived
+                    </Btn>
+                  )}
 
-          showSuccess(
-            'Arrival notification sent to customer'
-          );
-        }
-      )
-    }
-  >
-    Arrived
-  </Btn>
-)}
-
-                  {/* CASH COLLECTED — only for pending CASH orders that are OUT_FOR_DELIVERY */}
+                  {/* CASH COLLECTED — step 1 for CASH orders */}
                   {showCashCollect && (
                     <Btn
                       loading={busy === `cash-${o.id}`}
                       icon={<Banknote size={13} />}
                       onClick={() =>
-                        act(
-                          `cash-${o.id}`,
-                          async () => {
-                            await collectCashPayment(o.id);
-                            showSuccess('Cash collected successfully!');
-                          }
-                        )
+                        act(`cash-${o.id}`, async () => {
+                          await collectCashPayment(o.id);
+                          showSuccess('Cash collected successfully!');
+                        })
                       }
                       className="bg-amber-600 text-white hover:bg-amber-700 btn px-5 py-2.5 text-sm"
                     >
@@ -258,7 +228,7 @@ export default function PartnerOrders() {
                     </Btn>
                   )}
 
-                  {/* UPLOAD PROOF — only when OUT_FOR_DELIVERY and (UPI paid OR CASH already collected) */}
+                  {/* UPLOAD PROOF */}
                   {showUploadProof && (
                     <Btn
                       icon={<Camera size={13} />}
@@ -270,14 +240,12 @@ export default function PartnerOrders() {
                     </Btn>
                   )}
 
-                  {/* CASH ORDER: show hint when cash not yet collected */}
-                  {o.status === 'OUT_FOR_DELIVERY' &&
-                    o.paymentMethod === 'CASH' &&
-                    o.paymentStatus === 'PENDING' && (
-                      <p className="w-full text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-1">
-                        Collect cash from customer first, then upload delivery proof.
-                      </p>
-                    )}
+                  {/* Hint for cash orders awaiting collection */}
+                  {showCashCollect && (
+                    <p className="w-full text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-1">
+                      ① Collect cash from customer → ② Upload delivery proof
+                    </p>
+                  )}
 
                   {o.status === 'DELIVERED' && (
                     <span className="text-xs text-green-600 font-semibold flex items-center gap-1">

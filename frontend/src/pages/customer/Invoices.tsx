@@ -1,54 +1,40 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Eye } from 'lucide-react';
-import { Btn, Empty, PageHeader } from '../../components/index';
-import { loadOrders, money, fmtDate, shortId } from '../../utils/helpers';
+import { showError } from '../../utils/toast';
+import { getInvoice } from '../../services/invoices';
+import { Spinner } from '../../components/index';
+import { money, shortId, fmtDateTime } from '../../utils/helpers';
+import type { Invoice } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Invoices() {
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const delivered = loadOrders().filter(o => o.status === 'DELIVERED');
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Invoices are fetched per-order from the order detail view.
+    // This page shows a helpful message directing users to their orders.
+    setLoading(false);
+  }, []);
+
+  if (loading) return <Spinner />;
 
   return (
-    <div>
-      <PageHeader title="Invoices" sub="Generated after delivery" />
-
-      {delivered.length === 0 ? (
-        <div className="card">
-          <Empty
-            icon={<FileText size={26} />}
-            title="No invoices yet"
-            sub="Invoices appear once your order is delivered"
-            action={<Btn variant="secondary" onClick={() => navigate('/orders')}>View Orders</Btn>}
-          />
-        </div>
-      ) : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {delivered.map(o => (
-            <div key={o.orderId} className="card border hover:shadow-soft hover:border-brand-100 transition-all">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
-                    <FileText size={17} className="text-brand-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Order #{shortId(o.orderId)}</p>
-                    <p className="text-sm font-semibold text-gray-900">{fmtDate(o.createdAt)}</p>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 mb-3 truncate">{o.deliveryAddress}</p>
-              <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-                <span className="text-base font-bold text-brand-700">{money(o.amount)}</span>
-                <Btn
-                  variant="secondary" icon={<Eye size={13} />}
-                  onClick={() => navigate(`/invoices/${o.orderId}`)}
-                >
-                  View
-                </Btn>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="max-w-2xl mx-auto py-10 px-4">
+      <h1 className="text-2xl font-bold mb-6">Invoices</h1>
+      <div className="bg-white rounded-2xl shadow-soft border border-gray-100 p-8 text-center">
+        <p className="text-gray-500 mb-4">
+          Invoices are available for delivered orders.
+        </p>
+        <button
+          className="bg-brand-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-brand-700 transition"
+          onClick={() => navigate('/orders')}
+        >
+          View My Orders
+        </button>
+      </div>
     </div>
   );
 }

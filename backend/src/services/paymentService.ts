@@ -13,11 +13,11 @@ import { AppError } from "../utils/AppError";
 // INTERNAL: AUTO-ASSIGN PARTNER
 // ─────────────────────────────────────────────────────────────
 const autoAssignPartner = async (
-  orderId:          string,
+  orderId: string,
   customerAreaType: string
 ): Promise<{ assigned: boolean; partnerId?: string; partnerName?: string }> => {
   const allAvailable = await prisma.deliveryPartner.findMany({
-    where:   { currentStatus: PartnerStatus.AVAILABLE },
+    where: { currentStatus: PartnerStatus.AVAILABLE },
     orderBy: { totalDeliveries: "asc" },
   });
 
@@ -26,33 +26,33 @@ const autoAssignPartner = async (
   const zoneMatched = allAvailable.filter(
     (p) => p.serviceZone === customerAreaType
   );
-  const pool    = zoneMatched.length > 0 ? zoneMatched : allAvailable;
+  const pool = zoneMatched.length > 0 ? zoneMatched : allAvailable;
   const partner = pool[0];
 
   await prisma.$transaction([
     prisma.order.update({
       where: { id: orderId },
-      data:  { partnerId: partner.id, status: OrderStatus.ASSIGNED },
+      data: { partnerId: partner.id, status: OrderStatus.ASSIGNED },
     }),
     prisma.deliveryPartner.update({
       where: { id: partner.id },
       data: {
-        currentStatus:   PartnerStatus.ON_DELIVERY,
+        currentStatus: PartnerStatus.ON_DELIVERY,
         totalDeliveries: { increment: 1 },
       },
     }),
     prisma.deliveryTracking.upsert({
-      where:  { orderId },
+      where: { orderId },
       update: { partnerId: partner.id, status: DeliveryStatus.ASSIGNED },
       create: { orderId, partnerId: partner.id, status: DeliveryStatus.ASSIGNED },
     }),
     prisma.auditLog.create({
       data: {
         orderId,
-        action:     "AUTO_ASSIGN",
+        action: "AUTO_ASSIGN",
         fromStatus: OrderStatus.CONFIRMED,
-        toStatus:   OrderStatus.ASSIGNED,
-        message:    `[AUTO-ASSIGN] Partner ${partner.name} (${partner.phone}) → Order ${orderId}`,
+        toStatus: OrderStatus.ASSIGNED,
+        message: `[AUTO-ASSIGN] Partner ${partner.name} (${partner.phone}) → Order ${orderId}`,
       },
     }),
   ]);
@@ -65,18 +65,18 @@ const autoAssignPartner = async (
 // ─────────────────────────────────────────────────────────────
 const runPostPaymentOrchestration = async (orderId: string) => {
   const order = await prisma.order.update({
-    where:   { id: orderId },
-    data:    { status: OrderStatus.CONFIRMED },
+    where: { id: orderId },
+    data: { status: OrderStatus.CONFIRMED },
     include: { customer: true },
   });
 
   await prisma.auditLog.create({
     data: {
       orderId,
-      action:     "PAYMENT_SUCCESS",
+      action: "PAYMENT_SUCCESS",
       fromStatus: OrderStatus.PLACED,
-      toStatus:   OrderStatus.CONFIRMED,
-      message:    "Payment successful. Order confirmed.",
+      toStatus: OrderStatus.CONFIRMED,
+      message: "Payment successful. Order confirmed.",
     },
   });
 
@@ -89,11 +89,86 @@ const runPostPaymentOrchestration = async (orderId: string) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// INTERNAL: UPI PAYMENT (unchanged)
+// INTERNAL: CONVERT ORDER TO CASH (after UPI retry limit)
+// ─────────────────────────────────────────────────────────────
+const convertOrderToCash = async (orderId: string) => {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { customer: true },
+  });
+
+  if (!order) throw new AppError("Order not found", 404);
+
+  // Update payment record to CASH/PENDING
+  await prisma.payment.upsert({
+    where: { orderId },
+    update: {
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PENDING,
+    },
+    create: {
+      orderId,
+      amount: order.amountDue,
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PENDING,
+      transactionId: `CASH_CONVERTED_${Date.now()}`,
+      retryCount: 0,
+    },
+  });
+
+  // Update order to CASH payment method, keep paymentStatus PENDING
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      paymentMethod: PaymentMethod.CASH,
+      paymentStatus: PaymentStatus.PENDING,
+      amountPaid: 0,
+    },
+  });
+
+  // Confirm order and assign partner
+  const confirmedOrder = await prisma.order.update({
+    where: { id: orderId },
+    data: { status: OrderStatus.CONFIRMED },
+    include: { customer: true },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      orderId,
+      action: "UPI_CONVERTED_TO_CASH",
+      fromStatus: OrderStatus.PLACED,
+      toStatus: OrderStatus.CONFIRMED,
+      message:
+        "Maximum UPI retry limit reached. Order converted to Cash on Delivery.",
+    },
+  });
+
+  const assignment = await autoAssignPartner(
+    orderId,
+    String(confirmedOrder.customer.areaType)
+  );
+
+  const finalOrder = await prisma.order.findUnique({ where: { id: orderId } });
+
+  return {
+    message:
+      "Maximum retry limit reached. Please pay cash during delivery.",
+    orderId,
+    paymentStatus: PaymentStatus.PENDING,
+    status: finalOrder?.status ?? OrderStatus.ASSIGNED,
+    cashOnDelivery: true,
+    convertedToCash: true,
+    ...assignment,
+  };
+};
+
+// ─────────────────────────────────────────────────────────────
+// INTERNAL: UPI PAYMENT
 // ─────────────────────────────────────────────────────────────
 const handleUpiPayment = async (orderId: string) => {
   const order = await prisma.order.findUnique({
-    where:   { id: orderId },
+    where: { id: orderId },
     include: { payment: true },
   });
 
@@ -101,49 +176,54 @@ const handleUpiPayment = async (orderId: string) => {
 
   if (order.paymentStatus === PaymentStatus.SUCCESS) {
     return {
-      message:       "Already paid",
-      orderId:       order.id,
-      status:        order.status,
+      message: "Already paid",
+      orderId: order.id,
+      status: order.status,
       paymentStatus: order.paymentStatus,
     };
   }
 
-  // MOCK GATEWAY: always fails for testing retry flow
-  const paymentSuccess = Math.random() < 0.85;
-  //const paymentSuccess = false;
+  // MOCK GATEWAY
+ const paymentSuccess = Math.random() < 0.85; 
+ // const paymentSuccess = false;
+
 
   if (!paymentSuccess) {
-    await prisma.payment.upsert({
-      where:  { orderId },
-      update: { status: PaymentStatus.FAILED, method: PaymentMethod.UPI },
+    const updatedPayment = await prisma.payment.upsert({
+      where: { orderId },
+      update: {
+        status: PaymentStatus.FAILED,
+        method: PaymentMethod.UPI,
+        retryCount: { increment: 0 }, // already incremented by retryPayment
+      },
       create: {
         orderId,
-        amount:        order.amountDue,
-        method:        PaymentMethod.UPI,
-        status:        PaymentStatus.FAILED,
+        amount: order.amountDue,
+        method: PaymentMethod.UPI,
+        status: PaymentStatus.FAILED,
         transactionId: `TXN_FAIL_${Date.now()}`,
-        retryCount:    0,
+        retryCount: 0,
       },
     });
 
     await prisma.order.update({
       where: { id: orderId },
-      data:  { paymentStatus: PaymentStatus.FAILED },
+      data: { paymentStatus: PaymentStatus.FAILED },
     });
 
     throw new AppError("UPI Payment failed. Please retry.", 400);
   }
 
   const payment = await prisma.payment.upsert({
-    where:  { orderId },
+    where: { orderId },
     update: { status: PaymentStatus.SUCCESS, method: PaymentMethod.UPI },
     create: {
       orderId,
-      amount:        order.amountDue,
-      method:        PaymentMethod.UPI,
-      status:        PaymentStatus.SUCCESS,
+      amount: order.amountDue,
+      method: PaymentMethod.UPI,
+      status: PaymentStatus.SUCCESS,
       transactionId: `TXN_${Date.now()}`,
-      retryCount:    0,
+      retryCount: 0,
     },
   });
 
@@ -151,7 +231,7 @@ const handleUpiPayment = async (orderId: string) => {
     where: { id: orderId },
     data: {
       paymentStatus: PaymentStatus.SUCCESS,
-      amountPaid:    order.amountDue,
+      amountPaid: order.amountDue,
       paymentMethod: PaymentMethod.UPI,
     },
   });
@@ -161,22 +241,20 @@ const handleUpiPayment = async (orderId: string) => {
   const finalOrder = await prisma.order.findUnique({ where: { id: orderId } });
 
   return {
-    message:       "UPI payment successful. Invoice will be generated on delivery.",
+    message: "UPI payment successful. Invoice will be generated on delivery.",
     orderId,
-    paymentId:     payment.id,
-    status:        finalOrder?.status        ?? OrderStatus.CONFIRMED,
+    paymentId: payment.id,
+    status: finalOrder?.status ?? OrderStatus.CONFIRMED,
     paymentStatus: finalOrder?.paymentStatus ?? PaymentStatus.SUCCESS,
   };
 };
 
 // ─────────────────────────────────────────────────────────────
 // INTERNAL: CASH PAYMENT
-// Records COD intent, confirms order, assigns partner.
-// paymentStatus stays PENDING — settled at delivery stage.
 // ─────────────────────────────────────────────────────────────
 const handleCashPayment = async (orderId: string) => {
   const order = await prisma.order.findUnique({
-    where:   { id: orderId },
+    where: { id: orderId },
     include: { customer: true },
   });
 
@@ -184,58 +262,59 @@ const handleCashPayment = async (orderId: string) => {
 
   if (order.paymentStatus === PaymentStatus.SUCCESS) {
     return {
-      message:       "Payment already completed",
-      orderId:       order.id,
+      message: "Payment already completed",
+      orderId: order.id,
       paymentStatus: order.paymentStatus,
-      status:        order.status,
+      status: order.status,
     };
   }
 
-  // Step 1: record cash intent — payment stays PENDING, amountPaid stays 0
+  // Step 1: record cash intent
   await prisma.payment.upsert({
-    where:  { orderId },
+    where: { orderId },
     update: {
       method: PaymentMethod.CASH,
       status: PaymentStatus.PENDING,
     },
     create: {
       orderId,
-      amount:        order.amountDue,
-      method:        PaymentMethod.CASH,
-      status:        PaymentStatus.PENDING,
+      amount: order.amountDue,
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PENDING,
       transactionId: `CASH_COD_${Date.now()}`,
-      retryCount:    0,
+      retryCount: 0,
     },
   });
 
-  // Step 2: set paymentMethod on order, keep paymentStatus PENDING, amountPaid = 0
+  // Step 2: set paymentMethod on order, keep paymentStatus PENDING
   await prisma.order.update({
     where: { id: orderId },
     data: {
       paymentMethod: PaymentMethod.CASH,
       paymentStatus: PaymentStatus.PENDING,
-      amountPaid:    0,
+      amountPaid: 0,
     },
   });
 
   // Step 3: confirm order (PLACED → CONFIRMED)
   const confirmedOrder = await prisma.order.update({
-    where:   { id: orderId },
-    data:    { status: OrderStatus.CONFIRMED },
+    where: { id: orderId },
+    data: { status: OrderStatus.CONFIRMED },
     include: { customer: true },
   });
 
   await prisma.auditLog.create({
     data: {
       orderId,
-      action:     "CASH_INTENT",
+      action: "CASH_INTENT",
       fromStatus: OrderStatus.PLACED,
-      toStatus:   OrderStatus.CONFIRMED,
-      message:    "Cash on delivery selected. Order confirmed. Awaiting partner assignment.",
+      toStatus: OrderStatus.CONFIRMED,
+      message:
+        "Cash on delivery selected. Order confirmed. Awaiting partner assignment.",
     },
   });
 
-  // Step 4: assign partner → order moves CONFIRMED → ASSIGNED
+  // Step 4: assign partner
   const assignment = await autoAssignPartner(
     orderId,
     String(confirmedOrder.customer.areaType)
@@ -244,10 +323,10 @@ const handleCashPayment = async (orderId: string) => {
   const finalOrder = await prisma.order.findUnique({ where: { id: orderId } });
 
   return {
-    message:       "Cash on delivery selected. Delivery partner assigned.",
+    message: "Cash on delivery selected. Delivery partner assigned.",
     orderId,
     paymentStatus: PaymentStatus.PENDING,
-    status:        finalOrder?.status ?? OrderStatus.ASSIGNED,
+    status: finalOrder?.status ?? OrderStatus.ASSIGNED,
     cashOnDelivery: true,
     ...assignment,
   };
@@ -258,10 +337,10 @@ const handleCashPayment = async (orderId: string) => {
 // ─────────────────────────────────────────────────────────────
 export const processPayment = async (data: {
   orderId: string;
-  method:  PaymentMethod;
+  method: PaymentMethod;
 }) => {
   const order = await prisma.order.findUnique({
-    where:   { id: data.orderId },
+    where: { id: data.orderId },
     include: { payment: true },
   });
 
@@ -286,10 +365,8 @@ export const processPayment = async (data: {
     order.payment &&
     order.payment.retryCount >= 3
   ) {
-    throw new AppError(
-      "Maximum retry limit reached. Please pay using Cash On Delivery.",
-      409
-    );
+    // Auto-convert to cash instead of throwing
+    return convertOrderToCash(data.orderId);
   }
 
   if (data.method === PaymentMethod.CASH) {
@@ -300,11 +377,11 @@ export const processPayment = async (data: {
 };
 
 // ─────────────────────────────────────────────────────────────
-// PUBLIC: retryPayment — UPI only, max 3 retries (unchanged)
+// PUBLIC: retryPayment
 // ─────────────────────────────────────────────────────────────
 export const retryPayment = async (orderId: string) => {
   const order = await prisma.order.findUnique({
-    where:   { id: orderId },
+    where: { id: orderId },
     include: { payment: true },
   });
 
@@ -327,25 +404,24 @@ export const retryPayment = async (orderId: string) => {
     payment = await prisma.payment.create({
       data: {
         orderId,
-        amount:        order.amountDue,
-        method:        PaymentMethod.UPI,
-        status:        PaymentStatus.FAILED,
+        amount: order.amountDue,
+        method: PaymentMethod.UPI,
+        status: PaymentStatus.FAILED,
         transactionId: `TXN_INIT_${Date.now()}`,
-        retryCount:    0,
+        retryCount: 0,
       },
     });
   }
 
+  // If already at or beyond limit, convert to cash
   if (payment.retryCount >= 3) {
-    throw new AppError(
-      "Maximum retry limit reached. Please pay using Cash On Delivery.",
-      409
-    );
+    return convertOrderToCash(orderId);
   }
 
+  // Increment retry count
   const updatedPayment = await prisma.payment.update({
     where: { orderId },
-    data:  { retryCount: { increment: 1 } },
+    data: { retryCount: { increment: 1 } },
   });
 
   try {
@@ -355,14 +431,15 @@ export const retryPayment = async (orderId: string) => {
       retryCount: updatedPayment.retryCount,
     };
   } catch (err: any) {
-    const latestPayment = await prisma.payment.findUnique({ where: { orderId } });
-    const currentRetryCount = latestPayment?.retryCount ?? updatedPayment.retryCount;
+    const latestPayment = await prisma.payment.findUnique({
+      where: { orderId },
+    });
+    const currentRetryCount =
+      latestPayment?.retryCount ?? updatedPayment.retryCount;
 
+    // Auto-convert to cash when limit reached
     if (currentRetryCount >= 3) {
-      throw new AppError(
-        "Maximum retry limit reached. Please pay using Cash On Delivery.",
-        409
-      );
+      return convertOrderToCash(orderId);
     }
 
     throw err;
@@ -370,15 +447,14 @@ export const retryPayment = async (orderId: string) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// PUBLIC: collectCashPayment — delivery partner confirms cash collected
-// Can ONLY be called when order.status === DELIVERED
+// PUBLIC: collectCashPayment
 // ─────────────────────────────────────────────────────────────
 export const collectCashPayment = async (
-  orderId:   string,
+  orderId: string,
   partnerId: string
 ) => {
   const order = await prisma.order.findUnique({
-    where:   { id: orderId },
+    where: { id: orderId },
     include: { payment: true },
   });
 
@@ -396,58 +472,79 @@ export const collectCashPayment = async (
   }
 
   if (order.paymentStatus === PaymentStatus.SUCCESS) {
+    // Already collected — still try to generate invoice if missing
+    const existingInvoice = await prisma.invoice.findUnique({
+      where: { orderId },
+    });
+    if (!existingInvoice) {
+      try {
+        await generateInvoice(orderId);
+      } catch (e) {
+        console.error("[collectCashPayment] Invoice generation failed:", e);
+      }
+    }
     return {
-      message:       "Cash already collected",
-      orderId:       order.id,
+      message: "Cash already collected",
+      orderId: order.id,
       paymentStatus: order.paymentStatus,
     };
   }
 
+  // Mark payment as SUCCESS
   await prisma.order.update({
     where: { id: orderId },
     data: {
       paymentStatus: PaymentStatus.SUCCESS,
-      amountPaid:    order.amountDue,
+      amountPaid: order.amountDue,
     },
   });
 
   await prisma.payment.upsert({
-    where:  { orderId },
+    where: { orderId },
     update: {
-      status:        PaymentStatus.SUCCESS,
+      status: PaymentStatus.SUCCESS,
       transactionId: `CASH_COLLECTED_${partnerId}_${Date.now()}`,
     },
     create: {
       orderId,
-      amount:        order.amountDue,
-      method:        PaymentMethod.CASH,
-      status:        PaymentStatus.SUCCESS,
+      amount: order.amountDue,
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.SUCCESS,
       transactionId: `CASH_COLLECTED_${partnerId}_${Date.now()}`,
-      retryCount:    0,
+      retryCount: 0,
     },
   });
 
- await prisma.auditLog.create({
-  data: {
+  await prisma.auditLog.create({
+    data: {
+      orderId,
+      action: "CASH_COLLECTED",
+      fromStatus: OrderStatus.DELIVERED,
+      toStatus: OrderStatus.DELIVERED,
+      message: `Cash ₹${order.amountDue} collected by partner ${partnerId}.`,
+    },
+  });
+
+  // Generate invoice immediately after cash collection
+  try {
+    await generateInvoice(orderId);
+  } catch (error) {
+    console.error("[collectCashPayment] INVOICE GENERATION FAILED:", error);
+    // Log but don't fail the cash collection
+    await prisma.auditLog.create({
+      data: {
+        orderId,
+        action: "INVOICE_GENERATION_FAILED",
+        message: `Invoice generation failed after cash collection: ${String(error)}`,
+      },
+    });
+  }
+
+  return {
+    message: "Cash payment collected successfully.",
     orderId,
-    action: "CASH_COLLECTED",
-    fromStatus: OrderStatus.DELIVERED,
-    toStatus: OrderStatus.DELIVERED,
-    message: `Cash ₹${order.amountDue} collected by partner ${partnerId}.`,
-  },
-});
-
-try {
-  await generateInvoice(orderId);
-} catch (error) {
-  console.error("INVOICE GENERATION FAILED:", error);
-}
-
-return {
-  message: "Cash payment collected successfully.",
-  orderId,
-  paymentStatus: PaymentStatus.SUCCESS,
-  collectedBy: partnerId,
-  collectedAt: new Date().toISOString(),
-};
+    paymentStatus: PaymentStatus.SUCCESS,
+    collectedBy: partnerId,
+    collectedAt: new Date().toISOString(),
+  };
 };
