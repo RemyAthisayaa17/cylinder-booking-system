@@ -8,9 +8,7 @@ export interface AuthRequest extends Request {
   user?: any;
 }
 
-/**
- * AUTHENTICATION CHECK
- */
+
 export const authMiddleware = (
   req: AuthRequest,
   res: Response,

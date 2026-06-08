@@ -3,9 +3,7 @@ import { OrderStatus } from "@prisma/client";
 import { validateTransition } from "../utils/orderStateMachine";
 import { AppError } from "../utils/AppError";
 
-// ─────────────────────────────────────────────
-// SINGLE SOURCE: ORDER STATUS UPDATER ONLY
-// ─────────────────────────────────────────────
+
 export const updateOrderStatus = async (
   orderId: string,
   newStatus: OrderStatus
@@ -16,7 +14,7 @@ export const updateOrderStatus = async (
 
   if (!order) throw new AppError("Order not found", 404);
 
-  // enforce valid transitions
+
   validateTransition(order.status, newStatus);
 
   const updated = await prisma.order.update({

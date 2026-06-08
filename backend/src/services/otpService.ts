@@ -11,7 +11,7 @@ const RESEND_COOLDOWN_MS = 30 * 1000;
 const generateOtp = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
-/** SEND OTP */
+
 export const sendOtp = async (phone: string) => {
   const dbPhone = toDbPhone(phone);
 
@@ -35,7 +35,7 @@ export const sendOtp = async (phone: string) => {
     }
   }
 
-  /** LOCAL MODE */
+
   if (process.env.OTP_MODE === "LOCAL") {
     const otp = generateOtp();
     const expiresAt = new Date(now.getTime() + OTP_TTL_MS);
@@ -62,13 +62,13 @@ export const sendOtp = async (phone: string) => {
     return { message: "OTP sent (LOCAL)" };
   }
 
-  /** TWILIO MODE */
+  
   await sendTwilioOtp(toTwilioPhone(dbPhone));
 
   return { message: "OTP sent (TWILIO)" };
 };
 
-/** VERIFY OTP */
+
 export const verifyOtp = async (phone: string, otp: string) => {
   const dbPhone = toDbPhone(phone);
 
@@ -78,7 +78,7 @@ export const verifyOtp = async (phone: string, otp: string) => {
 
   if (!customer) throw new AppError("Customer not found", 404);
 
-  /** LOCAL MODE */
+  
   if (process.env.OTP_MODE === "LOCAL") {
     const record = await prisma.otpVerification.findFirst({
       where: { phone: dbPhone, purpose: PURPOSE, verified: false },
@@ -95,7 +95,7 @@ export const verifyOtp = async (phone: string, otp: string) => {
     });
   }
 
-  /** TWILIO MODE */
+
   else {
     const result = await verifyTwilioOtp(toTwilioPhone(dbPhone), otp);
     if (result.status !== "approved") {

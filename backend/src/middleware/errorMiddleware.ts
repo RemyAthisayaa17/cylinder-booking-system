@@ -1,11 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "../utils/AppError";
 
-/**
- * GLOBAL ERROR HANDLER
- * All errors funnel here via asyncHandler or next(err).
- * Always responds with the standard { code, msg, data, error } envelope.
- */
+
 export const errorMiddleware = (
   err: any,
   req: Request,

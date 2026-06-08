@@ -60,11 +60,7 @@ export const retryPaymentController = asyncHandler(
   }
 );
 
-/**
- * COLLECT CASH PAYMENT
- * POST /api/payments/collect-cash
- * Called by delivery partner after physically collecting cash from customer.
- */
+
 export const collectCashPaymentController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const orderId = req.body.orderId;

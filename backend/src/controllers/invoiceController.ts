@@ -16,9 +16,7 @@ const getSafeStringParam = (value: string | string[] | undefined): string => {
   return value;
 };
 
-// ─────────────────────────────────────────────
-// GENERATE INVOICE
-// ─────────────────────────────────────────────
+
 export const generateInvoiceController = asyncHandler(
   async (req: Request, res: Response) => {
     const { orderId } = req.body;
@@ -38,9 +36,7 @@ export const generateInvoiceController = asyncHandler(
   }
 );
 
-// ─────────────────────────────────────────────
-// GET INVOICE
-// ─────────────────────────────────────────────
+
 export const getInvoiceController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const orderId = getSafeStringParam(req.params.orderId);

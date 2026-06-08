@@ -11,10 +11,7 @@ import { authorizeRoles } from "../middleware/roleMiddleware";
 
 const router = Router();
 
-/**
- * GET MY ORDERS (PROTECTED — CUSTOMER only)
- * Must be above /:orderId to avoid route conflict.
- */
+
 router.get(
   "/my-orders",
   authMiddleware,
@@ -22,9 +19,7 @@ router.get(
   getMyOrdersController
 );
 
-/**
- * GET ELIGIBILITY (PROTECTED — CUSTOMER only)
- */
+
 router.get(
   "/eligibility",
   authMiddleware,
@@ -32,9 +27,7 @@ router.get(
   getEligibilityController
 );
 
-/**
- * CREATE ORDER (PROTECTED — CUSTOMER only)
- */
+
 router.post(
   "/",
   authMiddleware,
@@ -42,14 +35,7 @@ router.post(
   createOrderController
 );
 
-/**
- * GET ORDER BY ID (PROTECTED)
- * CUSTOMER: ownership enforced in controller.
- * DELIVERY_PARTNER and ADMIN: unrestricted.
- */
-/**
- * CANCEL ORDER
- */
+
 router.patch(
   "/:orderId/cancel",
   authMiddleware,

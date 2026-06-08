@@ -7,7 +7,7 @@ import { blockAdminPhone, ADMIN_PHONE } from "../utils/roleGuards";
 const ADMIN_NAME = "Administrator";
 const ADMIN_ID = "admin-fixed-id";
 
-/** REGISTER CUSTOMER */
+
 export const registerCustomer = async (data: any) => {
   blockAdminPhone(data.phone, "customer registration");
 
@@ -28,13 +28,13 @@ export const registerCustomer = async (data: any) => {
   };
 };
 
-/** CUSTOMER OTP SEND */
+
 export const sendOtpService = async (phone: string) => {
   blockAdminPhone(phone, "OTP request");
   return await sendOtp(phone);
 };
 
-/** CUSTOMER VERIFY */
+
 export const verifyOtpService = async (phone: string, otp: string) => {
   blockAdminPhone(phone, "OTP verification");
 
@@ -62,7 +62,7 @@ export const verifyOtpService = async (phone: string, otp: string) => {
   };
 };
 
-/** PARTNER LOGIN */
+
 export const partnerLoginService = async (phone: string) => {
   blockAdminPhone(phone, "partner login");
 
@@ -90,7 +90,7 @@ export const partnerLoginService = async (phone: string) => {
   };
 };
 
-/** ADMIN LOGIN */
+
 export const adminLoginService = async (phone: string) => {
   if (phone !== ADMIN_PHONE) {
     throw new AppError("Invalid admin credentials", 401);

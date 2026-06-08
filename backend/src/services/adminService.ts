@@ -1,7 +1,7 @@
 import prisma from "../config/db";
 import { AppError } from "../utils/AppError";
 
-/** CREATE DELIVERY PARTNER (ADMIN ONLY) */
+
 export const createPartnerService = async (data: {
   name: string;
   phone: string;
@@ -16,14 +16,11 @@ export const createPartnerService = async (data: {
   return prisma.deliveryPartner.create({ data });
 };
 
-/** GET ALL DELIVERY PARTNERS (ADMIN ONLY) */
 export const getPartnersService = async () => {
   return prisma.deliveryPartner.findMany({ orderBy: { createdAt: "desc" } });
 };
 
-/**
- * GET AUTO ASSIGNMENT LOG (ADMIN ONLY)
- */
+
 export const getAutoAssignmentLogService = async () => {
   const logs = await prisma.auditLog.findMany({
     where: { action: "AUTO_ASSIGN" },

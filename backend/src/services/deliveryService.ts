@@ -9,16 +9,12 @@ import { generateInvoice } from "./invoiceService";
 import { sendArrivalSMS } from "./smsService";
 import { assignBestPartner } from "./assignmentService";
 
-// ─────────────────────────────────────────────
-// ASSIGN PARTNER (delegates to assignmentService)
-// ─────────────────────────────────────────────
+
 export const assignDeliveryPartner = async (orderId: string) => {
   return assignBestPartner(orderId);
 };
 
-// ─────────────────────────────────────────────
-// START DELIVERY (ASSIGNED → OUT_FOR_DELIVERY)
-// ─────────────────────────────────────────────
+
 export const startDelivery = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -73,9 +69,7 @@ export const startDelivery = async (orderId: string) => {
   };
 };
 
-// ─────────────────────────────────────────────
-// COMPLETE DELIVERY (OUT_FOR_DELIVERY → DELIVERED)
-// ─────────────────────────────────────────────
+
 export const completeDelivery = async (data: {
   orderId: string;
   beforePhoto: string;
@@ -98,7 +92,7 @@ export const completeDelivery = async (data: {
 
   if (!order) throw new AppError("Order not found", 404);
 
-  // Idempotent: already delivered — ensure invoice exists and return success
+  
   if (order.status === OrderStatus.DELIVERED) {
     await ensureInvoiceExists(order.id);
     return { message: "Already delivered", orderId: order.id, status: order.status };
@@ -108,7 +102,7 @@ export const completeDelivery = async (data: {
     throw new AppError("Delivery not in progress", 409);
   }
 
-  // Determine partnerId for tracking upsert
+ 
   const trackingPartnerId =
     order.deliveryTracking?.partnerId ?? order.partnerId ?? "";
 
@@ -116,7 +110,7 @@ export const completeDelivery = async (data: {
     throw new AppError("No partner assigned to this order", 409);
   }
 
-  // Atomic transaction: update tracking + order status + release partner
+  
   const result = await prisma.$transaction(async (tx) => {
     // Upsert so it works whether or not the tracking row already exists
     await tx.deliveryTracking.upsert({
@@ -162,7 +156,7 @@ export const completeDelivery = async (data: {
     return updatedOrder;
   });
 
-  // Generate invoice AFTER transaction commits — single reliable trigger point
+  
   await ensureInvoiceExists(result.id);
 
   return {
@@ -172,11 +166,7 @@ export const completeDelivery = async (data: {
   };
 };
 
-/**
- * Safely generates an invoice for a delivered order.
- * Idempotent: if invoice already exists, returns without error.
- * Invoice failure does NOT roll back delivery completion.
- */
+
 const ensureInvoiceExists = async (orderId: string): Promise<void> => {
   try {
     await generateInvoice(orderId);
@@ -195,9 +185,7 @@ const ensureInvoiceExists = async (orderId: string): Promise<void> => {
   }
 };
 
-// ─────────────────────────────────────────────
-// MARK PARTNER ARRIVED
-// ─────────────────────────────────────────────
+
 export const markPartnerArrived = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },

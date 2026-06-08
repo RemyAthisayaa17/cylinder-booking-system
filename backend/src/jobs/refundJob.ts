@@ -3,9 +3,7 @@ import cron from "node-cron";
 import { processPendingRefunds } from "../services/orderService";
 
 export const startRefundJob = () => {
-  // Runs every 1 minute.
-  // refundEligibleAt in cancelOrder must be set to a matching delay
-  // (1 min for testing, 48 h for production) — see cancelOrder in orderService.ts.
+
   cron.schedule("* * * * *", async () => {
     console.log("Checking pending refunds...");
 

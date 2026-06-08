@@ -10,7 +10,7 @@ export const checkEligibility = async (customerId: string) => {
     throw new AppError("Customer not found", 404);
   }
 
-  // COMMERCIAL = always eligible
+
   if (customer.customerType === "COMMERCIAL") {
     return {
       eligible: true,
@@ -18,7 +18,7 @@ export const checkEligibility = async (customerId: string) => {
     };
   }
 
-  // DOMESTIC RULE
+
   const lastOrder = await prisma.order.findFirst({
     where: {
       customerId,
@@ -29,7 +29,7 @@ export const checkEligibility = async (customerId: string) => {
     }
   });
 
-  // If no previous orders → eligible
+
   if (!lastOrder) {
     return {
       eligible: true,

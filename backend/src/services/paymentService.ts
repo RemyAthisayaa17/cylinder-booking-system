@@ -9,9 +9,7 @@ import {
 import { generateInvoice } from "./invoiceService";
 import { AppError } from "../utils/AppError";
 
-// ─────────────────────────────────────────────────────────────
-// INTERNAL: AUTO-ASSIGN PARTNER
-// ─────────────────────────────────────────────────────────────
+
 const autoAssignPartner = async (
   orderId: string,
   customerAreaType: string
@@ -60,9 +58,7 @@ const autoAssignPartner = async (
   return { assigned: true, partnerId: partner.id, partnerName: partner.name };
 };
 
-// ─────────────────────────────────────────────────────────────
-// INTERNAL: POST-PAYMENT ORCHESTRATION (UPI only)
-// ─────────────────────────────────────────────────────────────
+
 const runPostPaymentOrchestration = async (orderId: string) => {
   const order = await prisma.order.update({
     where: { id: orderId },
@@ -88,9 +84,7 @@ const runPostPaymentOrchestration = async (orderId: string) => {
   return { ...assignment };
 };
 
-// ─────────────────────────────────────────────────────────────
-// INTERNAL: CONVERT ORDER TO CASH (after UPI retry limit)
-// ─────────────────────────────────────────────────────────────
+
 const convertOrderToCash = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -99,7 +93,7 @@ const convertOrderToCash = async (orderId: string) => {
 
   if (!order) throw new AppError("Order not found", 404);
 
-  // Update payment record to CASH/PENDING
+ 
   await prisma.payment.upsert({
     where: { orderId },
     update: {
@@ -116,7 +110,7 @@ const convertOrderToCash = async (orderId: string) => {
     },
   });
 
-  // Update order to CASH payment method, keep paymentStatus PENDING
+ 
   await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -126,7 +120,7 @@ const convertOrderToCash = async (orderId: string) => {
     },
   });
 
-  // Confirm order and assign partner
+
   const confirmedOrder = await prisma.order.update({
     where: { id: orderId },
     data: { status: OrderStatus.CONFIRMED },
@@ -163,9 +157,7 @@ const convertOrderToCash = async (orderId: string) => {
   };
 };
 
-// ─────────────────────────────────────────────────────────────
-// INTERNAL: UPI PAYMENT
-// ─────────────────────────────────────────────────────────────
+
 const handleUpiPayment = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -249,9 +241,7 @@ const handleUpiPayment = async (orderId: string) => {
   };
 };
 
-// ─────────────────────────────────────────────────────────────
-// INTERNAL: CASH PAYMENT
-// ─────────────────────────────────────────────────────────────
+
 const handleCashPayment = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -269,7 +259,7 @@ const handleCashPayment = async (orderId: string) => {
     };
   }
 
-  // Step 1: record cash intent
+ 
   await prisma.payment.upsert({
     where: { orderId },
     update: {
@@ -286,7 +276,7 @@ const handleCashPayment = async (orderId: string) => {
     },
   });
 
-  // Step 2: set paymentMethod on order, keep paymentStatus PENDING
+
   await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -296,7 +286,7 @@ const handleCashPayment = async (orderId: string) => {
     },
   });
 
-  // Step 3: confirm order (PLACED → CONFIRMED)
+
   const confirmedOrder = await prisma.order.update({
     where: { id: orderId },
     data: { status: OrderStatus.CONFIRMED },
@@ -314,7 +304,6 @@ const handleCashPayment = async (orderId: string) => {
     },
   });
 
-  // Step 4: assign partner
   const assignment = await autoAssignPartner(
     orderId,
     String(confirmedOrder.customer.areaType)
@@ -332,9 +321,7 @@ const handleCashPayment = async (orderId: string) => {
   };
 };
 
-// ─────────────────────────────────────────────────────────────
-// PUBLIC: processPayment
-// ─────────────────────────────────────────────────────────────
+
 export const processPayment = async (data: {
   orderId: string;
   method: PaymentMethod;
@@ -376,9 +363,7 @@ export const processPayment = async (data: {
   return handleUpiPayment(data.orderId);
 };
 
-// ─────────────────────────────────────────────────────────────
-// PUBLIC: retryPayment
-// ─────────────────────────────────────────────────────────────
+
 export const retryPayment = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -413,12 +398,12 @@ export const retryPayment = async (orderId: string) => {
     });
   }
 
-  // If already at or beyond limit, convert to cash
+ 
   if (payment.retryCount >= 3) {
     return convertOrderToCash(orderId);
   }
 
-  // Increment retry count
+
   const updatedPayment = await prisma.payment.update({
     where: { orderId },
     data: { retryCount: { increment: 1 } },
@@ -437,7 +422,7 @@ export const retryPayment = async (orderId: string) => {
     const currentRetryCount =
       latestPayment?.retryCount ?? updatedPayment.retryCount;
 
-    // Auto-convert to cash when limit reached
+    
     if (currentRetryCount >= 3) {
       return convertOrderToCash(orderId);
     }
@@ -446,9 +431,7 @@ export const retryPayment = async (orderId: string) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────
-// PUBLIC: collectCashPayment
-// ─────────────────────────────────────────────────────────────
+
 export const collectCashPayment = async (
   orderId: string,
   partnerId: string
@@ -490,7 +473,7 @@ export const collectCashPayment = async (
     };
   }
 
-  // Mark payment as SUCCESS
+  
   await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -525,7 +508,7 @@ export const collectCashPayment = async (
     },
   });
 
-  // Generate invoice immediately after cash collection
+  
   try {
     await generateInvoice(orderId);
   } catch (error) {

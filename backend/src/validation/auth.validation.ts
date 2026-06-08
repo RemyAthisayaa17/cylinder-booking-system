@@ -1,11 +1,20 @@
 import { z } from "zod";
 
 /**
+ * STRICT PHONE RULE (CRITICAL FIX)
+ */
+const phone = z
+  .string()
+  .regex(/^[0-9]{10}$/, "Invalid phone number");
+
+/**
  * REGISTER CUSTOMER VALIDATION
  */
 export const registerSchema = z.object({
   name: z.string().min(2, "Name too short"),
-  phone: z.string().max(10),
+
+  phone,
+
   address: z.string().min(3),
   city: z.string().min(2),
   state: z.string().min(2),
@@ -13,20 +22,17 @@ export const registerSchema = z.object({
   customerType: z.enum(["DOMESTIC", "COMMERCIAL"]),
   areaType: z.enum(["URBAN", "RURAL"]),
 
-  subsidyEligible: z.boolean().optional()
+  subsidyEligible: z.boolean().optional(),
 });
 
 /**
- * SEND OTP VALIDATION
+ * OTP VALIDATION
  */
 export const sendOtpSchema = z.object({
-  phone: z.string().max(10)
+  phone,
 });
 
-/**
- * VERIFY OTP VALIDATION
- */
 export const verifyOtpSchema = z.object({
-  phone: z.string().max(10),
-  otp: z.string().length(6)
+  phone,
+  otp: z.string().length(6),
 });

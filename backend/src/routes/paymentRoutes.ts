@@ -31,7 +31,6 @@ router.post(
   retryPaymentController
 );
 
-// Delivery partner confirms they collected cash after delivery
 router.post(
   "/collect-cash",
   authMiddleware,

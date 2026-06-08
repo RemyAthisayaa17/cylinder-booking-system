@@ -11,7 +11,7 @@ import { AppError } from "../utils/AppError";
 import { AuthRequest } from "../middleware/authMiddleware";
 import prisma from "../config/db";
 
-/** ASSIGN PARTNER */
+
 export const assignPartnerController = asyncHandler(async (req: Request, res: Response) => {
   const { orderId } = req.body;
   if (!orderId) throw new AppError("Missing required field: orderId", 400);
@@ -19,7 +19,7 @@ export const assignPartnerController = asyncHandler(async (req: Request, res: Re
   return successResponse({ res, code: 200, msg: "Partner assigned successfully", data });
 });
 
-/** START DELIVERY */
+
 export const startDeliveryController = asyncHandler(async (req: Request, res: Response) => {
   const { orderId } = req.body;
   if (!orderId) throw new AppError("Missing required field: orderId", 400);
@@ -27,7 +27,7 @@ export const startDeliveryController = asyncHandler(async (req: Request, res: Re
   return successResponse({ res, code: 200, msg: "Delivery started", data });
 });
 
-/** COMPLETE DELIVERY */
+
 export const completeDeliveryController = asyncHandler(
   async (req: Request, res: Response) => {
     const { orderId } = req.body;
@@ -67,10 +67,7 @@ export const completeDeliveryController = asyncHandler(
     });
   }
 );
-/**
- * GET ASSIGNED ORDERS — for logged-in delivery partner
- * RBAC: partnerId taken from JWT (req.user.id), never from body
- */
+
 export const getAssignedOrdersController = asyncHandler(async (req: AuthRequest, res: Response) => {
   const partnerId = req.user?.id as string;
 

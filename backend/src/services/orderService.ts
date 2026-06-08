@@ -1,4 +1,3 @@
-// src/services/orderService.ts
 import prisma from "../config/db";
 import {
   CylinderType,
@@ -14,9 +13,7 @@ import { geocodeAddress } from "../utils/geoCode";
 const round2 = (n: number): number =>
   Math.round(n * 100) / 100;
 
-// ─────────────────────────────────────────────────────────────
-// CUSTOMER TYPE ↔ CYLINDER TYPE VALIDATION
-// ─────────────────────────────────────────────────────────────
+
 const validateCylinderTypeForCustomer = (
   customerType: CustomerType,
   cylinderType: CylinderType
@@ -42,9 +39,7 @@ const validateCylinderTypeForCustomer = (
   }
 };
 
-// ─────────────────────────────────────────────────────────────
-// DOMESTIC COOLDOWN CHECK
-// ─────────────────────────────────────────────────────────────
+
 const validateDomesticBookingEligibility = async (
   customerId: string
 ): Promise<void> => {
@@ -91,9 +86,7 @@ const validateDomesticBookingEligibility = async (
   }
 };
 
-// ─────────────────────────────────────────────────────────────
-// SUBSIDY
-// ─────────────────────────────────────────────────────────────
+
 const calculateSubsidy = (
   customerType: string,
   cylinderType: CylinderType,
@@ -111,9 +104,7 @@ const calculateSubsidy = (
   return areaType === AreaType.URBAN ? 100 : 200;
 };
 
-// ─────────────────────────────────────────────────────────────
-// CREATE ORDER
-// ─────────────────────────────────────────────────────────────
+
 export const createOrder = async (data: {
   customerId: string;
   cylinderType: CylinderType;
@@ -163,7 +154,7 @@ export const createOrder = async (data: {
   );
   const total = round2(base + delivery + tax - subsidy);
 
-  // Geocode delivery address — non-blocking; order creation continues on failure
+
   const coords = await geocodeAddress(data.deliveryAddress);
 
   if (!coords) {
@@ -215,9 +206,7 @@ export const createOrder = async (data: {
   };
 };
 
-// ─────────────────────────────────────────────────────────────
-// GET ORDER
-// ─────────────────────────────────────────────────────────────
+
 export const getOrderById = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -236,9 +225,7 @@ export const getOrderById = async (orderId: string) => {
   return order;
 };
 
-// ─────────────────────────────────────────────────────────────
-// CUSTOMER ORDERS
-// ─────────────────────────────────────────────────────────────
+
 export const getOrdersByCustomer = async (customerId: string) => {
   return prisma.order.findMany({
     where: { customerId },
@@ -253,9 +240,7 @@ export const getOrdersByCustomer = async (customerId: string) => {
   });
 };
 
-// ─────────────────────────────────────────────────────────────
-// ELIGIBILITY CHECK
-// ─────────────────────────────────────────────────────────────
+
 export const checkCustomerEligibility = async (customerId: string) => {
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },
@@ -319,9 +304,7 @@ export const checkCustomerEligibility = async (customerId: string) => {
   };
 };
 
-// ─────────────────────────────────────────────────────────────
-// CANCEL ORDER
-// ─────────────────────────────────────────────────────────────
+
 export const cancelOrder = async (
   orderId: string,
   customerId: string
@@ -403,15 +386,11 @@ export const cancelOrder = async (
   };
 };
 
-// ─────────────────────────────────────────────────────────────
-// PROCESS PENDING REFUNDS (called by cron every minute)
-// ─────────────────────────────────────────────────────────────
+
 export const processPendingRefunds = async () => {
   const now = new Date();
 
-  // Fetch only payments that are genuinely eligible:
-  //   - refundStatus is still PENDING (not yet completed)
-  //   - refundEligibleAt has passed
+
   const pendingRefunds = await prisma.payment.findMany({
     where: {
       refundStatus: "PENDING",

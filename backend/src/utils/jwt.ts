@@ -7,7 +7,7 @@ if (!JWT_SECRET) {
   throw new Error("JWT_SECRET is missing in environment variables");
 }
 
-// RBAC: role added to token payload
+
 export const generateToken = (payload: {
   id: string;
   phone: string;

@@ -8,10 +8,7 @@ import { authorizeRoles } from "../middleware/roleMiddleware";
 
 const router = express.Router();
 
-/**
- * GENERATE INVOICE (PROTECTED)
- * RBAC: CUSTOMER and ADMIN
- */
+
 router.post(
   "/generate",
   authMiddleware,
@@ -19,10 +16,6 @@ router.post(
   generateInvoiceController
 );
 
-/**
- * GET INVOICE BY ORDER ID (PROTECTED)
- * RBAC: CUSTOMER, DELIVERY_PARTNER, ADMIN
- */
 router.get(
   "/:orderId",
   authMiddleware,

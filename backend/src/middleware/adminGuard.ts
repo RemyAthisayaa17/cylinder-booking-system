@@ -2,9 +2,6 @@ import { Response, NextFunction } from "express";
 import { AuthRequest } from "./authMiddleware";
 import { AppError } from "../utils/AppError";
 
-/**
- * ADMIN ONLY GUARD
- */
 export const adminGuard = (
   req: AuthRequest,
   res: Response,

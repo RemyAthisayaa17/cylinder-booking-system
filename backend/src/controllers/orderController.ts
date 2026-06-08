@@ -1,5 +1,3 @@
-// backend/src/controllers/orderController.ts
-
 import { Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 
@@ -15,10 +13,7 @@ import { successResponse } from "../utils/apiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
 import { AppError } from "../utils/AppError";
 
-/**
- * CREATE ORDER
- * customerId taken from JWT — never from body.
- */
+
 export const createOrderController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const customerId = req.user?.id as string | undefined;
@@ -63,11 +58,7 @@ export const createOrderController = asyncHandler(
   }
 );
 
-/**
- * GET ORDER BY ID
- * CUSTOMER: ownership enforced in controller.
- * DELIVERY_PARTNER and ADMIN: can read any order.
- */
+
 export const getOrderByIdController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const orderId = String(req.params.orderId);
@@ -95,10 +86,7 @@ export const getOrderByIdController = asyncHandler(
   }
 );
 
-/**
- * GET MY ORDERS
- * CUSTOMER only
- */
+
 export const getMyOrdersController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const customerId = req.user?.id as string | undefined;
@@ -118,10 +106,7 @@ export const getMyOrdersController = asyncHandler(
   }
 );
 
-/**
- * ELIGIBILITY CHECK
- * CUSTOMER only
- */
+
 export const getEligibilityController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const customerId = req.user?.id as string | undefined;
@@ -141,10 +126,7 @@ export const getEligibilityController = asyncHandler(
   }
 );
 
-/**
- * CANCEL ORDER
- * CUSTOMER only
- */
+
 export const cancelOrderController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const customerId = req.user?.id;

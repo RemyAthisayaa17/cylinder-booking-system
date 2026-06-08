@@ -10,7 +10,7 @@ const RESEND_COOLDOWN_MS = 30 * 1000;
 const generateOtp = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
-/** SEND OTP */
+
 export const sendPartnerOtp = async (phone: string) => {
   const dbPhone = toDbPhone(phone);
 
@@ -38,7 +38,7 @@ export const sendPartnerOtp = async (phone: string) => {
     }
   }
 
-  /** LOCAL MODE */
+ 
   if (process.env.OTP_MODE === "LOCAL") {
     const otp = generateOtp();
     const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
@@ -69,13 +69,13 @@ export const sendPartnerOtp = async (phone: string) => {
     return { message: "OTP sent (LOCAL)" };
   }
 
-  /** TWILIO MODE */
+
   await sendTwilioOtp(toTwilioPhone(dbPhone));
 
   return { message: "OTP sent (TWILIO)" };
 };
 
-/** VERIFY OTP */
+
 export const verifyPartnerOtp = async (phone: string, otp: string) => {
   const dbPhone = toDbPhone(phone);
 

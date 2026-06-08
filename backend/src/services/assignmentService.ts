@@ -2,9 +2,7 @@ import prisma from "../config/db";
 import { PartnerStatus, OrderStatus } from "@prisma/client";
 import { AppError } from "../utils/AppError";
 
-/**
- * AUTO ASSIGN BEST DELIVERY PARTNER
- */
+
 export const assignBestPartner = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -22,9 +20,7 @@ export const assignBestPartner = async (orderId: string) => {
     );
   }
 
-  /**
-   * STEP 1: FIND AVAILABLE PARTNERS
-   */
+  
   const partners = await prisma.deliveryPartner.findMany({
     where: {
       currentStatus: PartnerStatus.AVAILABLE,
@@ -43,14 +39,9 @@ export const assignBestPartner = async (orderId: string) => {
     );
   }
 
-  /**
-   * STEP 2: PICK BEST MATCH
-   */
   const selectedPartner = partners[0];
 
-  /**
-   * STEP 3: ASSIGN TO ORDER
-   */
+ 
   const updatedOrder = await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -59,9 +50,7 @@ export const assignBestPartner = async (orderId: string) => {
     }
   });
 
-  /**
-   * STEP 4: UPDATE PARTNER STATUS
-   */
+
   await prisma.deliveryPartner.update({
     where: { id: selectedPartner.id },
     data: {
@@ -84,9 +73,7 @@ export const assignBestPartner = async (orderId: string) => {
   };
 };
 
-/**
- * MANUAL REASSIGN (FALLBACK)
- */
+
 export const reassignPartner = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId }
@@ -96,7 +83,7 @@ export const reassignPartner = async (orderId: string) => {
     throw new AppError("Order not found", 404);
   }
 
-  // reset old partner if exists
+
   if (order.partnerId) {
     await prisma.deliveryPartner.update({
       where: { id: order.partnerId },

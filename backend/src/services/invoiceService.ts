@@ -24,9 +24,7 @@ const resolveSubsidy = (
   return areaType === AreaType.URBAN ? 100 : 200;
 };
 
-// ─────────────────────────────────────────────
-// GENERATE INVOICE — idempotent, race-safe
-// ─────────────────────────────────────────────
+
 export const generateInvoice = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -35,7 +33,7 @@ export const generateInvoice = async (orderId: string) => {
 
   if (!order) throw new AppError("Order not found", 404);
 
-  // Fast-path: invoice already exists → return it without re-computing
+ 
   if (order.invoice) {
     return {
       message: "Invoice already exists",
@@ -81,8 +79,7 @@ export const generateInvoice = async (orderId: string) => {
     totalAmount = order.amountDue;
   }
 
-  // Race-safe: use upsert so concurrent calls don't create duplicate invoices
-  // (Invoice.orderId is @unique so only one row can ever exist)
+
   try {
     const invoice = await prisma.invoice.upsert({
       where: { orderId },
@@ -98,7 +95,7 @@ export const generateInvoice = async (orderId: string) => {
       },
     });
 
-    // Only log when we created fresh (detect via comparing createdAt ≈ now)
+   
     const isNew =
       Math.abs(new Date(invoice.createdAt).getTime() - Date.now()) < 5000;
 
@@ -138,9 +135,7 @@ export const generateInvoice = async (orderId: string) => {
   }
 };
 
-// ─────────────────────────────────────────────
-// GET INVOICE BY ORDER ID
-// ─────────────────────────────────────────────
+
 export const getInvoice = async (orderId: string) => {
   const invoice = await prisma.invoice.findUnique({
     where: { orderId },
