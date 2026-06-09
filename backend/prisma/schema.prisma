@@ -16,7 +16,6 @@ enum CustomerType {
   COMMERCIAL
 }
 
-
 enum AreaType {
   URBAN
   RURAL
@@ -179,12 +178,10 @@ model Payment {
 
   retryCount Int @default(0)
 
-  
-  refundStatus      RefundStatus    @default(NOT_REQUIRED)
+  refundStatus      RefundStatus @default(NOT_REQUIRED)
   refundInitiatedAt DateTime?
   refundEligibleAt  DateTime?
   refundCompletedAt DateTime?
-  
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -210,7 +207,7 @@ model Invoice {
   createdAt DateTime @default(now())
 
   @@map("invoices")
-} 
+}
 
 model DeliveryTracking {
   id String @id @default(cuid())
@@ -220,10 +217,10 @@ model DeliveryTracking {
 
   partnerId String
 
-  status DeliveryStatus @default(ASSIGNED)
-    beforePhoto    String?
-    afterPhoto     String?
-    signaturePhoto String?
+  status         DeliveryStatus @default(ASSIGNED)
+  beforePhoto    String?
+  afterPhoto     String?
+  signaturePhoto String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

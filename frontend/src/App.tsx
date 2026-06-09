@@ -51,7 +51,7 @@ function RoleGuard({ allow }: { allow: Role[] }) {
       <Sidebar />
 
       <div className="flex-1 min-w-0">
-        <main className="p-6 lg:p-8 max-w-5xl mx-auto">
+        <main className="w-full max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6">
           <Outlet />
         </main>
       </div>
@@ -112,10 +112,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/orders/new" element={<NewOrder />} />
             <Route path="/orders" element={<Orders />} />
-            <Route
-              path="/invoices/:orderId"
-              element={<InvoiceDetail />}
-            />
+            <Route path="/invoices/:orderId" element={<InvoiceDetail />} />
             <Route path="/profile" element={<Profile />} />
           </Route>
 

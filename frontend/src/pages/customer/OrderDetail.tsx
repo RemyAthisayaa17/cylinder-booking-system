@@ -4,11 +4,9 @@ import {
   ArrowLeft,
   Package,
   MapPin,
-  CreditCard,
   CheckCircle,
   Clock,
   FileText,
-  RefreshCw,
 } from 'lucide-react';
 
 import { showSuccess, showError } from '../../utils/toast';
@@ -22,7 +20,6 @@ import {
   payBadge,
   money,
   fmtDateTime,
-  shortId,
   cylinderLabel,
   updateCachedOrder,
 } from '../../utils/helpers';
@@ -109,7 +106,7 @@ export default function OrderDetail() {
   const p = payBadge[order.paymentStatus];
   const cur = STEPS.indexOf(order.status as (typeof STEPS)[number]);
 
-  // Show invoice button as soon as the order is DELIVERED (invoice generated automatically)
+ 
   const invoiceReady = order.status === 'DELIVERED';
 
   const canPayUpi =
@@ -119,7 +116,7 @@ export default function OrderDetail() {
     !['DELIVERED', 'CANCELLED'].includes(order.status);
 
   const canCancel =
-    isCustomer && ['PLACED', 'CONFIRMED'].includes(order.status);
+    isCustomer && ['PLACED', 'CONFIRMED','ASSIGNED'].includes(order.status);
 
   const refundStatus = order.payment?.refundStatus as RefundStatus | undefined;
   const showRefund = refundStatus != null && refundStatus !== 'NOT_REQUIRED';
@@ -133,14 +130,14 @@ export default function OrderDetail() {
   const canUploadProof =
     isDeliveryPartner && order.status === 'OUT_FOR_DELIVERY';
 
-  // CASH: collect only when OUT_FOR_DELIVERY and payment still PENDING
+ 
   const canCollectCash =
     isDeliveryPartner &&
     order.status === 'OUT_FOR_DELIVERY' &&
     order.paymentMethod === 'CASH' &&
     order.paymentStatus === 'PENDING';
 
-  // Upload proof for CASH only after cash collected; UPI anytime OUT_FOR_DELIVERY
+ 
   const canUploadProofCashGated =
     isDeliveryPartner &&
     order.status === 'OUT_FOR_DELIVERY' &&
@@ -149,7 +146,7 @@ export default function OrderDetail() {
   return (
     <div className="max-w-2xl mx-auto">
       {/* HEADER */}
-      <div className="flex items-center gap-3 mb-6">
+     <div className="flex items-start gap-3 mb-5">
         <Btn
           variant="ghost"
           onClick={() => navigate(-1)}
@@ -159,7 +156,7 @@ export default function OrderDetail() {
         </Btn>
 
         <div className="flex-1">
-          <h1 className="text-xl font-bold">Order #{shortId(order.id)}</h1>
+         <h1 className="text-xl font-bold">Order Details</h1>
           <p className="text-sm text-gray-500">{fmtDateTime(order.createdAt)}</p>
         </div>
 
@@ -248,98 +245,82 @@ export default function OrderDetail() {
           <p className="text-sm text-gray-700">{order.deliveryAddress}</p>
         </Card>
       </div>
-
       {/* CUSTOMER ACTIONS */}
       {isCustomer && (
-        <Card className="mt-5">
-          <p className="font-bold mb-3">Actions</p>
-
-          <div className="flex gap-3 flex-wrap">
-            {canPayUpi && (
-              <Btn onClick={() => setPaymentOpen(true)}>Pay UPI</Btn>
-            )}
-
-            {invoiceReady && (
-              <Btn
-                variant="secondary"
-                icon={<FileText size={13} />}
-                onClick={() => navigate(`/invoices/${order.id}`)}
-              >
-                View Invoice
-              </Btn>
-            )}
-
-            {canCancel && (
-              <Btn
-                loading={busy === 'cancel'}
-                onClick={() =>
-                  act('cancel', async () => {
-                    await cancelOrder(order.id);
-                    showSuccess('Order cancelled');
-                    navigate('/orders');
-                  })
-                }
-              >
-                Cancel
-              </Btn>
-            )}
-
-            <Btn variant="ghost" onClick={load} icon={<RefreshCw size={13} />}>
-              Refresh
+        <div className="mt-5 flex flex-wrap gap-3">
+          {canPayUpi && (
+            <Btn onClick={() => setPaymentOpen(true)}>
+              Pay UPI
             </Btn>
-          </div>
-        </Card>
-      )}
+          )}
 
-      {/* DELIVERY PARTNER ACTIONS */}
-      {isDeliveryPartner && (
-        <Card className="mt-5">
-          <p className="font-bold mb-3">Delivery Actions</p>
-
-          <div className="flex gap-3 flex-wrap">
-            {/* STEP 1 for CASH: collect cash first */}
-            {canCollectCash && (
-              <Btn
-                loading={busy === 'collect-cash'}
-                onClick={() =>
-                  act('collect-cash', async () => {
-                    await collectCashPayment(order.id);
-                    showSuccess('Cash collected successfully!');
-                  })
-                }
-                className="bg-amber-600 text-white hover:bg-amber-700 btn px-5 py-2.5 text-sm"
-              >
-                Cash Collected
-              </Btn>
-            )}
-
-            {/* STEP 2 for CASH (after collection), or direct for UPI */}
-            {canUploadProofCashGated && (
-              <Btn
-                onClick={() =>
-                  navigate(`/partner/delivery-proof/${order.id}`)
-                }
-              >
-                Upload Proof
-              </Btn>
-            )}
-
-            {/* Hint for cash orders */}
-            {order.status === 'OUT_FOR_DELIVERY' &&
-              order.paymentMethod === 'CASH' &&
-              order.paymentStatus === 'PENDING' && (
-                <p className="w-full text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                  ① Collect cash from customer → ② Upload delivery proof
-                </p>
-              )}
-
-            <Btn variant="ghost" onClick={load} icon={<RefreshCw size={13} />}>
-              Refresh
+          {invoiceReady && (
+            <Btn
+              variant="secondary"
+              icon={<FileText size={13} />}
+              onClick={() => navigate(`/invoices/${order.id}`)}
+            >
+              View Invoice
             </Btn>
-          </div>
-        </Card>
-      )}
+          )}
 
+          {canCancel && (
+            <Btn
+              variant="secondary"
+              loading={busy === 'cancel'}
+              onClick={() =>
+                act('cancel', async () => {
+                  await cancelOrder(order.id);
+                  showSuccess('Order cancelled');
+                  navigate('/orders');
+                })
+              }
+            >
+              Cancel
+            </Btn>
+          )}
+        </div>
+      )}
+{/* DELIVERY PARTNER ACTIONS */}
+{isDeliveryPartner && (
+  <div className="mt-5 flex gap-3 flex-wrap">
+    {/* STEP 1 for CASH: collect cash first */}
+    {canCollectCash && (
+      <Btn
+        loading={busy === 'collect-cash'}
+        onClick={() =>
+          act('collect-cash', async () => {
+            await collectCashPayment(order.id);
+            showSuccess('Cash collected successfully!');
+          })
+        }
+        className="bg-amber-600 text-white hover:bg-amber-700 btn px-5 py-2.5 text-sm"
+      >
+        Cash Collected
+      </Btn>
+    )}
+
+    {/* STEP 2 for CASH (after collection), or direct for UPI */}
+    {canUploadProofCashGated && (
+      <Btn
+        onClick={() =>
+          navigate(`/partner/delivery-proof/${order.id}`)
+        }
+      >
+        Upload Proof
+      </Btn>
+    )}
+
+    {/* Hint for cash orders */}
+    {order.status === 'OUT_FOR_DELIVERY' &&
+      order.paymentMethod === 'CASH' &&
+      order.paymentStatus === 'PENDING' && (
+        <p className="w-full text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          ① Collect cash from customer → ② Upload delivery proof
+        </p>
+      )}
+  </div>
+)}
       {/* PAYMENT MODAL */}
       <PaymentModal
         open={paymentOpen}

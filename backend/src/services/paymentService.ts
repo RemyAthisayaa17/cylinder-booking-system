@@ -176,8 +176,8 @@ const handleUpiPayment = async (orderId: string) => {
   }
 
   // MOCK GATEWAY
- //const paymentSuccess = Math.random() < 0.85; 
- const paymentSuccess = false;
+ const paymentSuccess = Math.random() < 0.85; 
+ //const paymentSuccess = false;
 
 
   if (!paymentSuccess) {

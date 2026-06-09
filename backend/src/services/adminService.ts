@@ -1,12 +1,13 @@
 import prisma from "../config/db";
 import { AppError } from "../utils/AppError";
-
+import { blockAdminPhone } from "../utils/roleGuards";
 
 export const createPartnerService = async (data: {
   name: string;
   phone: string;
   serviceZone: string;
 }) => {
+    blockAdminPhone(data.phone, "partner creation");
   const existingPartner = await prisma.deliveryPartner.findUnique({ where: { phone: data.phone } });
   if (existingPartner) throw new AppError("Partner already exists", 409);
 

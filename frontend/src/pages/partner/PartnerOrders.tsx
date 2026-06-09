@@ -61,7 +61,7 @@ export default function PartnerOrders() {
   return (
     <div>
       <PageHeader
-        title="My Deliveries"
+        title="My Orders"
         sub={`${orders.length} assigned orders`}
       />
 
@@ -106,8 +106,8 @@ export default function PartnerOrders() {
                     </div>
 
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {cylinderLabel[o.cylinderType]} × {o.quantity}
-                    </p>
+  Quantity: {o.quantity}
+</p>
 
                     <p className="text-xs text-gray-500 truncate mt-0.5">
                       {o.deliveryAddress}

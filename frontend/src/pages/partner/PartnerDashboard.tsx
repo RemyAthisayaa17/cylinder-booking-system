@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Spinner, Empty, Badge } from '../../components/index';
 import { statusBadge, cylinderLabel, shortId, fmtDate } from '../../utils/helpers';
 import type { Order } from '../../types';
-import { showSuccess, showError } from '../../utils/toast';
+import {  showError } from '../../utils/toast';
 
 export default function PartnerDashboard() {
   const { user } = useAuth();

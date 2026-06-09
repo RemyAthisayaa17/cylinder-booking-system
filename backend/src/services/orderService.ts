@@ -324,7 +324,8 @@ export const cancelOrder = async (
 
   if (
     order.status !== OrderStatus.PLACED &&
-    order.status !== OrderStatus.CONFIRMED
+    order.status !== OrderStatus.CONFIRMED &&
+    order.status !== OrderStatus.ASSIGNED
   ) {
     throw new AppError(
       "Order cannot be cancelled after dispatch",
@@ -334,7 +335,9 @@ export const cancelOrder = async (
 
   await prisma.order.update({
     where: { id: orderId },
-    data: { status: OrderStatus.CANCELLED },
+    data: {
+      status: OrderStatus.CANCELLED,
+    },
   });
 
   let refundMessage = "";
@@ -344,17 +347,45 @@ export const cancelOrder = async (
     order.paymentStatus === "SUCCESS" &&
     order.payment
   ) {
-    refundMessage = "Refund will be processed within 24-48 hours";
+    refundMessage =
+      "Refund will be processed within 24-48 hours";
 
     const now = new Date();
-    const refundEligibleAt = new Date(now.getTime() + 1 * 60 * 1000);
+
+    // FOR TESTING ONLY: 1 minute
+    const refundEligibleAt = new Date(
+      now.getTime() + 60 * 1000
+    );
+
+    // PRODUCTION VERSION:
+    // const refundEligibleAt = new Date(
+    //   now.getTime() + 48 * 60 * 60 * 1000
+    // );
+
+    console.log("================================");
+    console.log("REFUND DEBUG");
+    console.log("ORDER:", orderId);
+    console.log("NOW:", now.toISOString());
+    console.log(
+      "ELIGIBLE:",
+      refundEligibleAt.toISOString()
+    );
+    console.log(
+      "DIFF MINUTES:",
+      (refundEligibleAt.getTime() - now.getTime()) /
+        (1000 * 60)
+    );
+    console.log("================================");
 
     await prisma.payment.update({
-      where: { orderId },
+      where: {
+        orderId,
+      },
       data: {
         refundStatus: "PENDING",
         refundInitiatedAt: now,
-        refundEligibleAt: refundEligibleAt,
+        refundEligibleAt,
+        refundCompletedAt: null,
       },
     });
 
@@ -375,7 +406,9 @@ export const cancelOrder = async (
       action: "ORDER_CANCELLED",
       fromStatus: order.status,
       toStatus: OrderStatus.CANCELLED,
-      message: refundMessage || "Order cancelled successfully",
+      message:
+        refundMessage ||
+        "Order cancelled successfully",
     },
   });
 
@@ -385,84 +418,127 @@ export const cancelOrder = async (
     refundMessage,
   };
 };
-
-
 export const processPendingRefunds = async () => {
   const now = new Date();
 
+  console.log("================================");
+  console.log("Server Time:", now.toISOString());
 
-  const pendingRefunds = await prisma.payment.findMany({
-    where: {
-      refundStatus: "PENDING",
-      refundEligibleAt: {
-        lte: now,
+  try {
+    // Debug: show all pending refunds
+    const debugRows = await prisma.payment.findMany({
+      where: {
+        refundStatus: "PENDING",
       },
-    },
-  });
+    });
 
-  console.log("Pending refunds found:", pendingRefunds.length);
+    console.log("Pending Refund Rows:", debugRows);
 
-  if (pendingRefunds.length === 0) {
-    console.log("No refunds to process right now.");
-    return { processed: 0, results: [] };
-  }
+    // Debug: run raw SQL against the same DB connection
+    const rawResult = await prisma.$queryRaw`
+      SELECT
+        id,
+        "orderId",
+        "refundStatus",
+        "refundEligibleAt",
+        NOW() as "dbNow"
+      FROM payments
+      WHERE
+        "refundStatus" = 'PENDING'
+        AND "refundEligibleAt" <= NOW()
+    `;
 
-  const results: Array<{
-    paymentId: string;
-    orderId: string;
-    status: string;
-  }> = [];
+    console.log("RAW SQL RESULT:", rawResult);
 
-  for (const payment of pendingRefunds) {
-    try {
-      console.log("Processing refund for:", payment.orderId);
-      const updated = await prisma.payment.updateMany({
-        where: {
-          id: payment.id,
-          refundStatus: "PENDING", // atomic check — prevents double-processing
+    // Actual Prisma query
+    const pendingRefunds = await prisma.payment.findMany({
+      where: {
+        refundStatus: "PENDING",
+        refundEligibleAt: {
+          lte: now,
         },
-        data: {
-          refundStatus: "COMPLETED",
-          refundCompletedAt: new Date(),
-        },
-      });
+      },
+    });
 
-      if (updated.count === 0) {
-        console.log(
-          "Refund already processed by another tick, skipping:",
-          payment.orderId
-        );
-        continue;
-      }
+    console.log("PRISMA RESULT:", pendingRefunds);
+    console.log("Pending refunds found:", pendingRefunds.length);
+    console.log("================================");
 
-      await prisma.auditLog.create({
-        data: {
-          orderId: payment.orderId,
-          action: "REFUND_COMPLETED",
-          fromStatus: "REFUND_PENDING",
-          toStatus: "REFUND_COMPLETED",
-          message: `Refund of ₹${payment.amount} processed successfully`,
-        },
-      });
-
-      results.push({
-        paymentId: payment.id,
-        orderId: payment.orderId,
-        status: "SUCCESS",
-      });
-    } catch (err) {
-      console.error("Refund failed for:", payment.orderId, err);
-
-      results.push({
-        paymentId: payment.id,
-        orderId: payment.orderId,
-        status: "ERROR",
-      });
+    if (pendingRefunds.length === 0) {
+      console.log("No refunds to process right now.");
+      return {
+        processed: 0,
+        results: [],
+      };
     }
-  }
 
-  return {
-    processed: results.length,
-    results,
-  };
+    const results: Array<{
+      paymentId: string;
+      orderId: string;
+      status: string;
+    }> = [];
+
+    for (const payment of pendingRefunds) {
+      try {
+        console.log("Processing refund for:", payment.orderId);
+
+        const updated = await prisma.payment.updateMany({
+          where: {
+            id: payment.id,
+            refundStatus: "PENDING",
+          },
+          data: {
+            refundStatus: "COMPLETED",
+            refundCompletedAt: new Date(),
+          },
+        });
+
+        if (updated.count === 0) {
+          console.log(
+            "Refund already processed by another tick, skipping:",
+            payment.orderId
+          );
+          continue;
+        }
+
+        await prisma.auditLog.create({
+          data: {
+            orderId: payment.orderId,
+            action: "REFUND_COMPLETED",
+            fromStatus: "REFUND_PENDING",
+            toStatus: "REFUND_COMPLETED",
+            message: `Refund of ₹${payment.amount} processed successfully`,
+          },
+        });
+
+        results.push({
+          paymentId: payment.id,
+          orderId: payment.orderId,
+          status: "SUCCESS",
+        });
+
+        console.log("Refund completed:", payment.orderId);
+      } catch (err) {
+        console.error("Refund failed for:", payment.orderId, err);
+
+        results.push({
+          paymentId: payment.id,
+          orderId: payment.orderId,
+          status: "ERROR",
+        });
+      }
+    }
+
+    return {
+      processed: results.length,
+      results,
+    };
+  } catch (err) {
+    console.error("Refund scheduler error:", err);
+
+    return {
+      processed: 0,
+      results: [],
+    };
+  }
 };
