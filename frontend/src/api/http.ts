@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { showError } from '../utils/toast';
-
+console.log("VITE_API_URL =", import.meta.env.VITE_API_URL);
 const http = axios.create({
   baseURL:
     import.meta.env.VITE_API_URL ??

@@ -77,14 +77,7 @@ async function main() {
     ],
   });
 
-  // ── Pricing ───────────────────────────────────────────────────────────────
-  // PRD §4 pricing rules:
-  //   DOMESTIC 14.2kg: base ₹913, delivery ₹0, tax 0%, subsidy via calculateSubsidy()
-  //   COMMERCIAL 19kg: base ₹3071.50, delivery ₹100, tax 21%
-  //   COMMERCIAL 47.5kg: base ₹7674.50, delivery ₹200, tax 21%
-  //
-  // Pricing.region is a plain String column — use literal "URBAN" / "RURAL".
-  // Both regions must have rows so no customer gets a 404.
+
   await prisma.pricing.createMany({
     data: [
       // ── URBAN pricing ──────────────────────────────────────────────────

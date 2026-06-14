@@ -90,12 +90,7 @@ export default function NewOrder() {
         createdAt: new Date().toISOString(),
       });
 
-      // FIX: For CASH orders, immediately call POST /api/payments/cash after
-      // order creation. This triggers handleCashPayment() on the backend which
-      // sets order.status = CONFIRMED and assigns a delivery partner.
-      // Without this call the order stays at PLACED forever — cashPayment() was
-      // never called from this page, only UPI had a payment action (via the Pay
-      // button in OrderDetail). UPI flow is unchanged.
+      
       if (method === 'CASH') {
         await cashPayment(orderId);
         showSuccess('Order placed! Cash on delivery confirmed.');
@@ -226,11 +221,7 @@ export default function NewOrder() {
           </div>
         </Card>
 
-        {/* Note */}
-        <div className="flex items-start gap-2 px-4 py-3 bg-amber-50 rounded-xl border border-amber-100 text-xs text-amber-800">
-          <Info size={14} className="flex-shrink-0 mt-0.5" />
-          Final amount is calculated by the server based on your region and pricing.
-        </div>
+  
 
         <Btn
           type="submit"

@@ -4,15 +4,20 @@ import {
   ArrowLeft,
   Package,
   MapPin,
-  CheckCircle,
-  Clock,
+  CheckCircle2,
   FileText,
+  CreditCard,
+  Truck,
+  Navigation,
+  Camera,
+  Banknote,
 } from 'lucide-react';
 
 import { showSuccess, showError } from '../../utils/toast';
 import { getOrder, cancelOrder } from '../../services/orders';
 import { processPayment, retryPayment, collectCashPayment } from '../../services/payments';
-import { Btn, Badge, Spinner, Card } from '../../components/index';
+import { startDelivery, markArrived } from '../../services/delivery';
+import { Btn, Badge, Spinner } from '../../components/index';
 import PaymentModal from '../../components/PaymentModal';
 
 import {
@@ -27,44 +32,272 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import type { Order, RefundStatus } from '../../types';
 
-const STEPS = [
-  'PLACED',
-  'CONFIRMED',
-  'ASSIGNED',
-  'OUT_FOR_DELIVERY',
-  'DELIVERED',
+const ORDER_STEPS = [
+  { key: 'PLACED',           label: 'Placed'           },
+  { key: 'CONFIRMED',        label: 'Confirmed'        },
+  { key: 'ASSIGNED',         label: 'Assigned'         },
+  { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery' },
+  { key: 'DELIVERED',        label: 'Delivered'        },
 ] as const;
 
 const refundBadge: Record<RefundStatus, { label: string; cls: string }> = {
   NOT_REQUIRED: { label: 'Not Required', cls: 'bg-gray-100 text-gray-500' },
-  PENDING: { label: 'Pending', cls: 'bg-yellow-100 text-yellow-700' },
-  COMPLETED: { label: 'Completed', cls: 'bg-green-100 text-green-700' },
+  PENDING:      { label: 'Pending',      cls: 'bg-yellow-100 text-yellow-700' },
+  COMPLETED:    { label: 'Completed',    cls: 'bg-green-100 text-green-700' },
 };
 
+// ── Read-only completed step ───────────────────────────────────────────────────
+function DoneStep({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 px-1 py-3">
+      <div className="w-7 h-7 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center flex-shrink-0">
+        <CheckCircle2 size={14} className="text-emerald-600" strokeWidth={2.5} />
+      </div>
+      <span className="text-sm text-gray-400 font-medium line-through decoration-gray-300">{label}</span>
+    </div>
+  );
+}
+
+// ── Primary action button ─────────────────────────────────────────────────────
+function PrimaryBtn({
+  onClick, disabled, loading, icon, children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || loading}
+      className="w-full inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-brand-700 text-white hover:bg-brand-800 px-6 py-3.5 text-sm shadow-brand"
+    >
+      {icon}
+      {loading ? 'Please wait…' : children}
+    </button>
+  );
+}
+
+// ── Secondary action button ───────────────────────────────────────────────────
+function SecondaryBtn({
+  onClick, disabled, loading, icon, children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || loading}
+      className="w-full inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-white text-brand-700 border-2 border-brand-200 hover:bg-brand-50 px-6 py-3 text-sm"
+    >
+      {icon}
+      {loading ? 'Please wait…' : children}
+    </button>
+  );
+}
+
+// ── Delivery partner guided workflow ──────────────────────────────────────────
+// Business logic mapping:
+//   ASSIGNED         → Step 1: Start Delivery  (calls startDelivery)
+//   OUT_FOR_DELIVERY → Step 2: Navigate (opens map — no API)
+//                    → Step 3: Arrived  (calls markArrived — sends SMS only, no status change)
+//                              "arrived" is tracked locally via useState after tap
+//                    → Step 4: Upload Proof (navigates to proof page)
+//   DELIVERED        → UPI: done
+//                    → CASH + paymentStatus PENDING: Step 5: Cash Collected (calls collectCashPayment)
+//   DELIVERED + CASH + paymentStatus SUCCESS → fully done
+function PartnerWorkflow({
+  order,
+  busy,
+  act,
+  navigate,
+}: {
+  order: Order;
+  busy: string;
+  act: (key: string, fn: () => Promise<unknown>) => Promise<void>;
+  navigate: ReturnType<typeof useNavigate>;
+}) {
+  // markArrived sends an SMS but does NOT change order.status.
+  // Track locally so the button disappears after tapping.
+  const [arrivedDone, setArrivedDone] = useState(false);
+
+  const isCash        = order.paymentMethod === 'CASH';
+  const isAssigned    = order.status === 'ASSIGNED';
+  const isOFD         = order.status === 'OUT_FOR_DELIVERY';
+  const isDelivered   = order.status === 'DELIVERED';
+  const cashCollected = isCash && order.paymentStatus === 'SUCCESS';
+
+  const openMap = () => {
+    const hasCoords =
+      typeof order.latitude  === 'number' &&
+      typeof order.longitude === 'number' &&
+      !(order.latitude === 0 && order.longitude === 0);
+    const url = hasCoords
+      ? `https://www.openstreetmap.org/?mlat=${order.latitude}&mlon=${order.longitude}#map=18/${order.latitude}/${order.longitude}`
+      : `https://www.openstreetmap.org/search?query=${encodeURIComponent(order.deliveryAddress)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // ── Fully completed ──────────────────────────────────────────────────────────
+  if (isDelivered && (!isCash || cashCollected)) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6 mt-5">
+        <p className="text-sm font-bold text-gray-900 mb-1">Delivery Steps</p>
+        <div className="divide-y divide-gray-50">
+          <DoneStep label="Started Delivery" />
+          <DoneStep label="Navigated to Address" />
+          <DoneStep label="Arrived at Location" />
+          <DoneStep label="Proof Uploaded" />
+          {isCash && <DoneStep label="Cash Collected" />}
+        </div>
+        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 size={14} className="text-white" strokeWidth={2.5} />
+          </div>
+          <span className="text-sm font-bold text-brand-700">
+            {isCash ? 'Payment Successful' : 'Delivery Completed'}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── DELIVERED, COD, cash not yet collected ───────────────────────────────────
+  if (isDelivered && isCash && !cashCollected) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6 mt-5">
+        <p className="text-sm font-bold text-gray-900 mb-1">Delivery Steps</p>
+        <div className="divide-y divide-gray-50">
+          <DoneStep label="Started Delivery" />
+          <DoneStep label="Navigated to Address" />
+          <DoneStep label="Arrived at Location" />
+          <DoneStep label="Proof Uploaded" />
+        </div>
+        <div className="pt-4 mt-2">
+          <button
+            disabled={busy === 'collect-cash'}
+            onClick={() =>
+              act('collect-cash', async () => {
+                await collectCashPayment(order.id);
+                showSuccess('Cash collected successfully!');
+              })
+            }
+            className="w-full inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-amber-600 text-white hover:bg-amber-700 px-6 py-3.5 text-sm"
+          >
+            <Banknote size={16} />
+            {busy === 'collect-cash' ? 'Collecting…' : 'Cash Collected'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ASSIGNED: only Start Delivery ───────────────────────────────────────────
+  if (isAssigned) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6 mt-5">
+        <p className="text-sm font-bold text-gray-900 mb-4">Delivery Steps</p>
+        <PrimaryBtn
+          onClick={() =>
+            act('start', async () => {
+              await startDelivery(order.id);
+              showSuccess('Delivery started!');
+            })
+          }
+          loading={busy === 'start'}
+          icon={<Truck size={16} />}
+        >
+          Start Delivery
+        </PrimaryBtn>
+      </div>
+    );
+  }
+
+  // ── OUT_FOR_DELIVERY: Navigate → Arrived → Upload Proof ─────────────────────
+  if (isOFD) {
+    // After "Arrived" is tapped locally, hide Navigate+Arrived and show Upload Proof
+    if (arrivedDone) {
+      return (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6 mt-5">
+          <p className="text-sm font-bold text-gray-900 mb-1">Delivery Steps</p>
+          <div className="divide-y divide-gray-50">
+            <DoneStep label="Started Delivery" />
+            <DoneStep label="Navigated to Address" />
+            <DoneStep label="Arrived at Location" />
+          </div>
+          <div className="pt-4 mt-2">
+            <PrimaryBtn
+              onClick={() => navigate(`/partner/delivery-proof/${order.id}`)}
+              icon={<Camera size={16} />}
+            >
+              Upload Delivery Proof
+            </PrimaryBtn>
+          </div>
+        </div>
+      );
+    }
+
+    // Navigate + Arrived phase
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6 mt-5">
+        <p className="text-sm font-bold text-gray-900 mb-1">Delivery Steps</p>
+        <div className="divide-y divide-gray-50 mb-4">
+          <DoneStep label="Started Delivery" />
+        </div>
+        <div className="space-y-3">
+          <SecondaryBtn onClick={openMap} icon={<Navigation size={15} />}>
+            Navigate to Address
+          </SecondaryBtn>
+          <PrimaryBtn
+            onClick={() =>
+              act('arrived', async () => {
+                await markArrived(order.id);
+                setArrivedDone(true);
+                showSuccess('Arrival notification sent!');
+              })
+            }
+            loading={busy === 'arrived'}
+            icon={<Navigation size={15} />}
+          >
+            Mark as Arrived
+          </PrimaryBtn>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ── Main page component ───────────────────────────────────────────────────────
 export default function OrderDetail() {
   const { orderId } = useParams<{ orderId: string }>();
-  const navigate = useNavigate();
-  const { role } = useAuth();
+  const navigate    = useNavigate();
+  const { role }    = useAuth();
 
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState('');
+  const [order, setOrder]             = useState<Order | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [busy, setBusy]               = useState('');
   const [paymentOpen, setPaymentOpen] = useState(false);
 
-  const isCustomer = role === 'CUSTOMER';
+  const isCustomer        = role === 'CUSTOMER';
   const isDeliveryPartner = role === 'DELIVERY_PARTNER';
 
   const load = useCallback(async () => {
     if (!orderId) return;
-
     try {
       const res = await getOrder(orderId);
       setOrder(res.data);
-
       updateCachedOrder(orderId, {
-        status: res.data.status,
+        status:        res.data.status,
         paymentStatus: res.data.paymentStatus,
-        amount: res.data.amountDue,
+        amount:        res.data.amountDue,
       });
     } catch {
       showError('Could not load order');
@@ -73,17 +306,16 @@ export default function OrderDetail() {
     }
   }, [orderId]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   async function act(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
     try {
       await fn();
       await load();
-    } catch (e: any) {
-      showError(e?.message ?? 'Action failed');
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      showError(err?.message ?? 'Action failed');
     } finally {
       setBusy('');
     }
@@ -95,20 +327,16 @@ export default function OrderDetail() {
     return (
       <div className="text-center py-20">
         <p className="text-gray-500 mb-4">Order not found</p>
-        <Btn variant="ghost" onClick={() => navigate('/orders')}>
-          ← Back
-        </Btn>
+        <Btn variant="ghost" onClick={() => navigate('/orders')}>← Back</Btn>
       </div>
     );
   }
 
-  const s = statusBadge[order.status];
-  const p = payBadge[order.paymentStatus];
-  const cur = STEPS.indexOf(order.status as (typeof STEPS)[number]);
+  const s   = statusBadge[order.status];
+  const p   = payBadge[order.paymentStatus];
+  const cur = ORDER_STEPS.findIndex(step => step.key === order.status);
 
- 
   const invoiceReady = order.status === 'DELIVERED';
-
   const canPayUpi =
     isCustomer &&
     order.paymentMethod !== 'CASH' &&
@@ -116,92 +344,86 @@ export default function OrderDetail() {
     !['DELIVERED', 'CANCELLED'].includes(order.status);
 
   const canCancel =
-    isCustomer && ['PLACED', 'CONFIRMED','ASSIGNED'].includes(order.status);
+    isCustomer && ['PLACED', 'CONFIRMED', 'ASSIGNED'].includes(order.status);
 
   const refundStatus = order.payment?.refundStatus as RefundStatus | undefined;
-  const showRefund = refundStatus != null && refundStatus !== 'NOT_REQUIRED';
-
+  const showRefund   = refundStatus != null && refundStatus !== 'NOT_REQUIRED';
   const dbRetryCount = order.payment?.retryCount ?? 0;
-
-  // Delivery partner actions
-  const delivery = order.deliveryTracking;
-  const proofUploaded = delivery?.status === 'DELIVERED';
-
-  const canUploadProof =
-    isDeliveryPartner && order.status === 'OUT_FOR_DELIVERY';
-
- 
-  const canCollectCash =
-    isDeliveryPartner &&
-    order.status === 'OUT_FOR_DELIVERY' &&
-    order.paymentMethod === 'CASH' &&
-    order.paymentStatus === 'PENDING';
-
- 
-  const canUploadProofCashGated =
-    isDeliveryPartner &&
-    order.status === 'OUT_FOR_DELIVERY' &&
-    (order.paymentMethod !== 'CASH' || order.paymentStatus === 'SUCCESS');
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* HEADER */}
-     <div className="flex items-start gap-3 mb-5">
-        <Btn
-          variant="ghost"
-          onClick={() => navigate(-1)}
-          icon={<ArrowLeft size={16} />}
-        >
-          Back
-        </Btn>
 
-        <div className="flex-1">
-         <h1 className="text-xl font-bold">Order Details</h1>
-          <p className="text-sm text-gray-500">{fmtDateTime(order.createdAt)}</p>
+      {/* Back link */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-600 transition-colors mb-5 group"
+      >
+        <ArrowLeft size={15} className="group-hover:-translate-x-0.5 transition-transform" />
+        Back to Orders
+      </button>
+
+      {/* Page title + status */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 leading-tight">Order Details</h1>
+          <p className="text-sm text-gray-500 mt-1">{fmtDateTime(order.createdAt)}</p>
         </div>
-
-        <Badge label={s.label} cls={s.cls} />
+        <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${s.cls}`}>
+          {s.label}
+        </span>
       </div>
 
-      {/* PROGRESS */}
+      {/* Progress Timeline */}
       {order.status !== 'CANCELLED' && (
-        <Card className="mb-5">
-          <p className="text-sm font-bold mb-5">Order Progress</p>
-
-          <div className="flex justify-between">
-            {STEPS.map((step, i) => {
-              const done = i <= cur;
-
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6 mb-5">
+          <p className="text-sm font-bold text-gray-900 mb-8">Order Progress</p>
+          <div className="relative flex items-start justify-between px-2">
+            <div
+              className="absolute h-[3px] bg-gray-200 rounded-full"
+              style={{ top: '18px', left: '28px', right: '28px' }}
+            />
+            <div
+              className="absolute h-[3px] bg-brand-600 rounded-full transition-all duration-500"
+              style={{
+                top: '18px',
+                left: '28px',
+                width: cur <= 0
+                  ? '0%'
+                  : `calc(${(cur / (ORDER_STEPS.length - 1)) * 100}% - ${(cur / (ORDER_STEPS.length - 1)) * 0}px)`,
+                maxWidth: 'calc(100% - 56px)',
+              }}
+            />
+            {ORDER_STEPS.map((step, i) => {
+              const done    = i < cur;
+              const current = i === cur;
               return (
-                <div key={step} className="flex flex-col items-center flex-1">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
-                      done
-                        ? 'bg-brand-600 border-brand-600'
-                        : 'bg-white'
-                    }`}
-                  >
-                    {done ? (
-                      <CheckCircle size={12} className="text-white" />
-                    ) : (
-                      <Clock size={12} />
-                    )}
+                <div key={step.key} className="flex flex-col items-center relative z-10" style={{ width: '20%' }}>
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${
+                    done    ? 'bg-brand-600 shadow-sm' :
+                    current ? 'bg-brand-700 ring-4 ring-brand-100' :
+                              'bg-white border-2 border-gray-300'
+                  }`}>
+                    {done    ? <CheckCircle2 size={17} className="text-white" strokeWidth={2.5} /> :
+                     current ? <div className="w-3 h-3 rounded-full bg-white" /> :
+                               null}
                   </div>
-
-                  <p className="text-xs mt-2 text-center">
-                    {statusBadge[step].label}
+                  <p className={`text-xs mt-2.5 text-center leading-tight ${
+                    done || current ? 'text-gray-900 font-semibold' : 'text-gray-400 font-medium'
+                  }`}>
+                    {step.label}
                   </p>
                 </div>
               );
             })}
           </div>
-        </Card>
+        </div>
       )}
 
-      {/* CONVERTED TO CASH NOTICE */}
+      {/* Cash COD notice */}
       {order.paymentMethod === 'CASH' &&
         order.paymentStatus === 'PENDING' &&
-        order.status !== 'PLACED' && (
+        order.status !== 'PLACED' &&
+        order.status !== 'CANCELLED' && (
           <div className="mb-5 p-4 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-800">
             {dbRetryCount >= 3
               ? 'Maximum UPI retry limit reached. This order will be paid via Cash on Delivery.'
@@ -209,65 +431,74 @@ export default function OrderDetail() {
           </div>
         )}
 
-      {/* DETAILS */}
-      <div className="grid md:grid-cols-2 gap-5">
-        <Card>
-          <p className="font-bold mb-3 flex items-center gap-2">
-            <Package size={14} /> Order Details
-          </p>
-
-          <dl className="space-y-2 text-sm">
-            <Row label="Cylinder">{cylinderLabel[order.cylinderType]}</Row>
-            <Row label="Quantity">{order.quantity}</Row>
-            <Row label="Amount Due">
-              <b>{money(order.amountDue)}</b>
-            </Row>
-            <Row label="Payment Method">{order.paymentMethod ?? '—'}</Row>
-            <Row label="Payment">
-              <Badge label={p.label} cls={p.cls} />
-            </Row>
+      {/* Detail cards */}
+      <div className="grid md:grid-cols-2 gap-4 mb-5">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center">
+              <Package size={15} className="text-brand-600" />
+            </div>
+            <p className="font-bold text-gray-900 text-sm">Order Details</p>
+          </div>
+          <dl className="space-y-3.5">
+            <DetailRow label="Cylinder">{cylinderLabel[order.cylinderType]}</DetailRow>
+            <DetailRow label="Quantity">{order.quantity}</DetailRow>
+            <DetailRow label="Amount Due">
+              <span className="font-bold text-gray-900">{money(order.amountDue)}</span>
+            </DetailRow>
+            <DetailRow label="Payment Method">{order.paymentMethod ?? '—'}</DetailRow>
+            <DetailRow label="Payment"><Badge label={p.label} cls={p.cls} /></DetailRow>
             {showRefund && refundStatus && (
-              <Row label="Refund">
-                <Badge
-                  label={refundBadge[refundStatus].label}
-                  cls={refundBadge[refundStatus].cls}
-                />
-              </Row>
+              <DetailRow label="Refund">
+                <Badge label={refundBadge[refundStatus].label} cls={refundBadge[refundStatus].cls} />
+              </DetailRow>
             )}
           </dl>
-        </Card>
+        </div>
 
-        <Card>
-          <p className="font-bold mb-3 flex items-center gap-2">
-            <MapPin size={14} /> Delivery Info
-          </p>
-
-          <p className="text-sm text-gray-700">{order.deliveryAddress}</p>
-        </Card>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center">
+              <MapPin size={15} className="text-brand-600" />
+            </div>
+            <p className="font-bold text-gray-900 text-sm">Delivery Info</p>
+          </div>
+          <p className="text-sm text-gray-600 leading-relaxed">{order.deliveryAddress}</p>
+          {order.payment?.status === 'PENDING' && order.paymentMethod === 'UPI' && (
+            <div className="mt-5 pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-2 mb-1">
+                <CreditCard size={14} className="text-amber-500" />
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Payment Status</p>
+              </div>
+              <p className="text-sm font-bold text-amber-600 mt-0.5">Pending Payment</p>
+              <p className="text-xs text-gray-400 mt-0.5">Payment Method: UPI</p>
+            </div>
+          )}
+        </div>
       </div>
-      {/* CUSTOMER ACTIONS */}
+
+      {/* Customer actions */}
       {isCustomer && (
-        <div className="mt-5 flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3">
           {canPayUpi && (
-            <Btn onClick={() => setPaymentOpen(true)}>
-              Pay UPI
-            </Btn>
-          )}
-
-          {invoiceReady && (
-            <Btn
-              variant="secondary"
-              icon={<FileText size={13} />}
-              onClick={() => navigate(`/invoices/${order.id}`)}
+            <button
+              onClick={() => setPaymentOpen(true)}
+              className="inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-95 bg-brand-600 text-white hover:bg-brand-700 shadow-brand px-6 py-3 text-sm"
             >
-              View Invoice
-            </Btn>
+              Pay UPI
+            </button>
           )}
-
+          {invoiceReady && (
+            <button
+              onClick={() => navigate(`/invoices/${order.id}`)}
+              className="inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-95 bg-white text-brand-700 border-2 border-brand-200 hover:bg-brand-50 px-6 py-3 text-sm"
+            >
+              <FileText size={14} /> View Invoice
+            </button>
+          )}
           {canCancel && (
-            <Btn
-              variant="secondary"
-              loading={busy === 'cancel'}
+            <button
+              disabled={busy === 'cancel'}
               onClick={() =>
                 act('cancel', async () => {
                   await cancelOrder(order.id);
@@ -275,62 +506,26 @@ export default function OrderDetail() {
                   navigate('/orders');
                 })
               }
+              className="inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed bg-white text-red-600 border-2 border-red-200 hover:bg-red-50 px-6 py-3 text-sm"
             >
-              Cancel
-            </Btn>
+              {busy === 'cancel' ? 'Cancelling…' : 'Cancel Order'}
+            </button>
           )}
         </div>
       )}
-{/* DELIVERY PARTNER ACTIONS */}
-{isDeliveryPartner && (
-  <div className="mt-5 flex gap-3 flex-wrap">
-    {/* STEP 1 for CASH: collect cash first */}
-    {canCollectCash && (
-      <Btn
-        loading={busy === 'collect-cash'}
-        onClick={() =>
-          act('collect-cash', async () => {
-            await collectCashPayment(order.id);
-            showSuccess('Cash collected successfully!');
-          })
-        }
-        className="bg-amber-600 text-white hover:bg-amber-700 btn px-5 py-2.5 text-sm"
-      >
-        Cash Collected
-      </Btn>
-    )}
 
-    {/* STEP 2 for CASH (after collection), or direct for UPI */}
-    {canUploadProofCashGated && (
-      <Btn
-        onClick={() =>
-          navigate(`/partner/delivery-proof/${order.id}`)
-        }
-      >
-        Upload Proof
-      </Btn>
-    )}
-
-    {/* Hint for cash orders */}
-    {order.status === 'OUT_FOR_DELIVERY' &&
-      order.paymentMethod === 'CASH' &&
-      order.paymentStatus === 'PENDING' && (
-        <p className="w-full text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-          ① Collect cash from customer → ② Upload delivery proof
-        </p>
+      {/* Partner guided workflow */}
+      {isDeliveryPartner && (
+        <PartnerWorkflow order={order} busy={busy} act={act} navigate={navigate} />
       )}
-  </div>
-)}
-      {/* PAYMENT MODAL */}
+
+      {/* Payment Modal */}
       <PaymentModal
         open={paymentOpen}
         amount={order.amountDue}
         orderId={order.id}
         retryCount={dbRetryCount}
-        onClose={() => {
-          setPaymentOpen(false);
-          load();
-        }}
+        onClose={() => { setPaymentOpen(false); load(); }}
         onSuccess={async () => {
           await processPayment(order.id, 'UPI');
           showSuccess('Payment successful');
@@ -339,9 +534,7 @@ export default function OrderDetail() {
         onRetry={async () => {
           const result = await retryPayment(order.id);
           if (result?.data?.convertedToCash) {
-            showSuccess(
-              'Maximum retry limit reached. Please pay cash during delivery.'
-            );
+            showSuccess('Maximum retry limit reached. Please pay cash during delivery.');
           } else {
             showSuccess('Retry successful');
           }
@@ -352,11 +545,11 @@ export default function OrderDetail() {
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex justify-between">
-      <span className="text-gray-500">{label}</span>
-      <span className="font-medium">{children}</span>
+    <div className="flex items-center justify-between py-0.5">
+      <dt className="text-sm text-gray-500">{label}</dt>
+      <dd className="text-sm font-medium text-gray-900">{children}</dd>
     </div>
   );
 }

@@ -109,7 +109,7 @@ export const verifyPartnerOtp = async (phone: string, otp: string) => {
       where: { id: record.id },
       data: {
         verified: true,
-        otp: ""
+    
       }
     });
   } else {

@@ -91,7 +91,7 @@ export const verifyOtp = async (phone: string, otp: string) => {
 
     await prisma.otpVerification.update({
       where: { id: record.id },
-      data: { verified: true, otp: "" }
+      data: { verified: true }
     });
   }
 
