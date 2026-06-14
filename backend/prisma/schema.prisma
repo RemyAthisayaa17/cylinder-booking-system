@@ -63,6 +63,7 @@ enum DeliveryStatus {
   ASSIGNED
   OUT_FOR_DELIVERY
   DELIVERED
+  CANCELLED
 }
 
 /**
@@ -215,7 +216,7 @@ model DeliveryTracking {
   orderId String @unique
   order   Order  @relation(fields: [orderId], references: [id])
 
-  partnerId String
+  partnerId String?
 
   status         DeliveryStatus @default(ASSIGNED)
   beforePhoto    String?
