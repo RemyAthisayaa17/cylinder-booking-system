@@ -1,95 +1,162 @@
 import prisma from "../config/db";
-import { PartnerStatus, OrderStatus } from "@prisma/client";
+import { PartnerStatus, OrderStatus, DeliveryStatus } from "@prisma/client";
 import { AppError } from "../utils/AppError";
 
 
-export const assignBestPartner = async (orderId: string) => {
+async function executeAssignment(
+  orderId: string,
+  partnerId: string,
+  partnerName: string
+): Promise<void> {
+  await prisma.$transaction([
+    prisma.order.update({
+      where: { id: orderId },
+      data: { partnerId, status: OrderStatus.ASSIGNED },
+    }),
+    prisma.deliveryPartner.update({
+      where: { id: partnerId },
+      data: {
+        currentStatus: PartnerStatus.ON_DELIVERY,
+        totalDeliveries: { increment: 1 },
+      },
+    }),
+    prisma.deliveryTracking.upsert({
+      where: { orderId },
+      update: { partnerId, status: DeliveryStatus.ASSIGNED },
+      create: { orderId, partnerId, status: DeliveryStatus.ASSIGNED },
+    }),
+    prisma.auditLog.create({
+      data: {
+        orderId,
+        action: "AUTO_ASSIGN",
+        fromStatus: OrderStatus.CONFIRMED,
+        toStatus: OrderStatus.ASSIGNED,
+        message: `[AUTO-ASSIGN] Partner ${partnerName} → Order ${orderId}`,
+      },
+    }),
+  ]);
+}
+
+
+export const assignBestPartner = async (
+  orderId: string
+): Promise<{ assigned: boolean; partnerId?: string; partnerName?: string }> => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { customer: true }
+    include: { customer: true },
   });
 
-  if (!order) {
-    throw new AppError("Order not found", 404);
-  }
+  if (!order) throw new AppError("Order not found", 404);
 
   if (order.status !== OrderStatus.CONFIRMED) {
-    throw new AppError(
-      "Order must be CONFIRMED before assignment",
-      409
-    );
+    throw new AppError("Order must be CONFIRMED before assignment", 409);
   }
 
-  
-  const partners = await prisma.deliveryPartner.findMany({
+  if (order.partnerId) {
+    // Already assigned — idempotent return
+    return { assigned: true, partnerId: order.partnerId };
+  }
+
+  const customerAreaType = String(order.customer.areaType);
+
+  const allAvailable = await prisma.deliveryPartner.findMany({
+    where: { currentStatus: PartnerStatus.AVAILABLE },
+    orderBy: { totalDeliveries: "asc" },
+  });
+
+  if (allAvailable.length === 0) return { assigned: false };
+
+  const zoneMatched = allAvailable.filter(
+    (p) => p.serviceZone === customerAreaType
+  );
+  const pool = zoneMatched.length > 0 ? zoneMatched : allAvailable;
+  const partner = pool[0];
+
+  await executeAssignment(orderId, partner.id, partner.name);
+
+  return { assigned: true, partnerId: partner.id, partnerName: partner.name };
+};
+
+
+export const assignPendingOrders = async (): Promise<{
+  processed: number;
+  results: Array<{ orderId: string; partnerId: string; partnerName: string }>;
+}> => {
+  // Fetch all unassigned CONFIRMED orders, oldest first (FIFO)
+  const pendingOrders = await prisma.order.findMany({
     where: {
-      currentStatus: PartnerStatus.AVAILABLE,
-      serviceZone: order.customer.city
+      status: OrderStatus.CONFIRMED,
+      partnerId: null,
     },
-    orderBy: [
-      { rating: "desc" },
-      { totalDeliveries: "asc" }
-    ]
+    include: { customer: true },
+    orderBy: { createdAt: "asc" },
   });
 
-  if (!partners.length) {
-    throw new AppError(
-      "No delivery partner available",
-      404
+  if (pendingOrders.length === 0) return { processed: 0, results: [] };
+
+  const results: Array<{
+    orderId: string;
+    partnerId: string;
+    partnerName: string;
+  }> = [];
+
+  for (const order of pendingOrders) {
+  
+    const customerAreaType = String(order.customer.areaType);
+
+    const allAvailable = await prisma.deliveryPartner.findMany({
+      where: { currentStatus: PartnerStatus.AVAILABLE },
+      orderBy: { totalDeliveries: "asc" },
+    });
+
+    if (allAvailable.length === 0) break; // No more partners; stop early
+
+    const zoneMatched = allAvailable.filter(
+      (p) => p.serviceZone === customerAreaType
     );
+    const pool = zoneMatched.length > 0 ? zoneMatched : allAvailable;
+    const partner = pool[0];
+
+    try {
+      await executeAssignment(order.id, partner.id, partner.name);
+      results.push({
+        orderId: order.id,
+        partnerId: partner.id,
+        partnerName: partner.name,
+      });
+    } catch (err) {
+      // Log but continue — one failed assignment must not abort the sweep
+      console.error(
+        `[assignPendingOrders] Failed to assign order ${order.id}:`,
+        err
+      );
+    }
   }
 
-  const selectedPartner = partners[0];
-
- 
-  const updatedOrder = await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      partnerId: selectedPartner.id,
-      status: OrderStatus.ASSIGNED
-    }
-  });
+  return { processed: results.length, results };
+};
 
 
+export const releasePartner = async (partnerId: string): Promise<void> => {
   await prisma.deliveryPartner.update({
-    where: { id: selectedPartner.id },
-    data: {
-      currentStatus: PartnerStatus.ON_DELIVERY,
-      totalDeliveries: {
-        increment: 1
-      }
-    }
+    where: { id: partnerId },
+    data: { currentStatus: PartnerStatus.AVAILABLE },
   });
 
-  return {
-    message: "Partner assigned successfully",
-    orderId: updatedOrder.id,
-    partner: {
-      id: selectedPartner.id,
-      name: selectedPartner.name,
-      phone: selectedPartner.phone
-    },
-    status: updatedOrder.status
-  };
+    await assignPendingOrders();
 };
 
 
 export const reassignPartner = async (orderId: string) => {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId }
-  });
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) throw new AppError("Order not found", 404);
 
-  if (!order) {
-    throw new AppError("Order not found", 404);
-  }
-
-
+  // Release existing partner if any
   if (order.partnerId) {
-    await prisma.deliveryPartner.update({
-      where: { id: order.partnerId },
-      data: {
-        currentStatus: PartnerStatus.AVAILABLE
-      }
+    await releasePartner(order.partnerId);
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { partnerId: null, status: OrderStatus.CONFIRMED },
     });
   }
 

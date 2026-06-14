@@ -5,13 +5,16 @@ import {
   PaymentMethod,
   OrderStatus,
   AreaType,
+  PartnerStatus,
+ DeliveryStatus
 } from "@prisma/client";
+
 
 import { AppError } from "../utils/AppError";
 import { geocodeAddress } from "../utils/geoCode";
+import { releasePartner, assignPendingOrders } from "./assignmentService";
 
-const round2 = (n: number): number =>
-  Math.round(n * 100) / 100;
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 
 const validateCylinderTypeForCustomer = (
@@ -335,10 +338,34 @@ export const cancelOrder = async (
 
   await prisma.order.update({
     where: { id: orderId },
-    data: {
-      status: OrderStatus.CANCELLED,
-    },
+    data: { status: OrderStatus.CANCELLED },
   });
+
+  if (order.partnerId) {
+    await prisma.deliveryTracking.updateMany({
+      where: { orderId },
+      data: { status: DeliveryStatus.CANCELLED},
+    });
+
+    await releasePartner(order.partnerId);
+
+    await prisma.auditLog.create({
+      data: {
+        orderId,
+        action: "PARTNER_RELEASED",
+        fromStatus: order.status,
+        toStatus: OrderStatus.CANCELLED,
+        message: `Partner ${order.partnerId} released due to order cancellation`,
+      },
+    });
+
+    assignPendingOrders().catch((err) =>
+      console.error(
+        "[cancelOrder] assignPendingOrders sweep failed:",
+        err
+      )
+    );
+  }
 
   let refundMessage = "";
 
@@ -352,35 +379,23 @@ export const cancelOrder = async (
 
     const now = new Date();
 
-    // FOR TESTING ONLY: 1 minute
     const refundEligibleAt = new Date(
       now.getTime() + 60 * 1000
     );
-
-    // PRODUCTION VERSION:
-    // const refundEligibleAt = new Date(
-    //   now.getTime() + 48 * 60 * 60 * 1000
-    // );
 
     console.log("================================");
     console.log("REFUND DEBUG");
     console.log("ORDER:", orderId);
     console.log("NOW:", now.toISOString());
-    console.log(
-      "ELIGIBLE:",
-      refundEligibleAt.toISOString()
-    );
+    console.log("ELIGIBLE:", refundEligibleAt.toISOString());
     console.log(
       "DIFF MINUTES:",
-      (refundEligibleAt.getTime() - now.getTime()) /
-        (1000 * 60)
+      (refundEligibleAt.getTime() - now.getTime()) / (1000 * 60)
     );
     console.log("================================");
 
     await prisma.payment.update({
-      where: {
-        orderId,
-      },
+      where: { orderId },
       data: {
         refundStatus: "PENDING",
         refundInitiatedAt: now,
@@ -406,9 +421,7 @@ export const cancelOrder = async (
       action: "ORDER_CANCELLED",
       fromStatus: order.status,
       toStatus: OrderStatus.CANCELLED,
-      message:
-        refundMessage ||
-        "Order cancelled successfully",
+      message: refundMessage || "Order cancelled successfully",
     },
   });
 
@@ -418,6 +431,7 @@ export const cancelOrder = async (
     refundMessage,
   };
 };
+
 export const processPendingRefunds = async () => {
   const now = new Date();
 

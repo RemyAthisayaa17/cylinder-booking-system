@@ -7,7 +7,7 @@ import {
 import { AppError } from "../utils/AppError";
 import { generateInvoice } from "./invoiceService";
 import { sendArrivalSMS } from "./smsService";
-import { assignBestPartner } from "./assignmentService";
+import { assignBestPartner, assignPendingOrders } from "./assignmentService";
 
 
 export const assignDeliveryPartner = async (orderId: string) => {
@@ -76,7 +76,6 @@ export const completeDelivery = async (data: {
   afterPhoto: string;
   signaturePhoto: string;
 }) => {
-  // Validate photos before any DB work
   if (
     !data.beforePhoto?.trim() ||
     !data.afterPhoto?.trim() ||
@@ -92,17 +91,19 @@ export const completeDelivery = async (data: {
 
   if (!order) throw new AppError("Order not found", 404);
 
-  
   if (order.status === OrderStatus.DELIVERED) {
     await ensureInvoiceExists(order.id);
-    return { message: "Already delivered", orderId: order.id, status: order.status };
+    return {
+      message: "Already delivered",
+      orderId: order.id,
+      status: order.status,
+    };
   }
 
   if (order.status !== OrderStatus.OUT_FOR_DELIVERY) {
     throw new AppError("Delivery not in progress", 409);
   }
 
- 
   const trackingPartnerId =
     order.deliveryTracking?.partnerId ?? order.partnerId ?? "";
 
@@ -110,9 +111,7 @@ export const completeDelivery = async (data: {
     throw new AppError("No partner assigned to this order", 409);
   }
 
-  
   const result = await prisma.$transaction(async (tx) => {
-    // Upsert so it works whether or not the tracking row already exists
     await tx.deliveryTracking.upsert({
       where: { orderId: data.orderId },
       update: {
@@ -156,7 +155,14 @@ export const completeDelivery = async (data: {
     return updatedOrder;
   });
 
-  
+  // BUG #1 FIX: Partner is now AVAILABLE — sweep pending CONFIRMED orders.
+  assignPendingOrders().catch((err) =>
+    console.error(
+      "[completeDelivery] assignPendingOrders sweep failed:",
+      err
+    )
+  );
+
   await ensureInvoiceExists(result.id);
 
   return {
@@ -176,7 +182,7 @@ const ensureInvoiceExists = async (orderId: string): Promise<void> => {
       message.includes("already exists") ||
       message.includes("already generated")
     ) {
-      return; // benign — invoice already there
+      return;
     }
     console.error(
       `[INVOICE] Failed to generate invoice for order ${orderId}:`,

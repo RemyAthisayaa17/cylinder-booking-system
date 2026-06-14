@@ -8,55 +8,7 @@ import {
 } from "@prisma/client";
 import { generateInvoice } from "./invoiceService";
 import { AppError } from "../utils/AppError";
-
-
-const autoAssignPartner = async (
-  orderId: string,
-  customerAreaType: string
-): Promise<{ assigned: boolean; partnerId?: string; partnerName?: string }> => {
-  const allAvailable = await prisma.deliveryPartner.findMany({
-    where: { currentStatus: PartnerStatus.AVAILABLE },
-    orderBy: { totalDeliveries: "asc" },
-  });
-
-  if (allAvailable.length === 0) return { assigned: false };
-
-  const zoneMatched = allAvailable.filter(
-    (p) => p.serviceZone === customerAreaType
-  );
-  const pool = zoneMatched.length > 0 ? zoneMatched : allAvailable;
-  const partner = pool[0];
-
-  await prisma.$transaction([
-    prisma.order.update({
-      where: { id: orderId },
-      data: { partnerId: partner.id, status: OrderStatus.ASSIGNED },
-    }),
-    prisma.deliveryPartner.update({
-      where: { id: partner.id },
-      data: {
-        currentStatus: PartnerStatus.ON_DELIVERY,
-        totalDeliveries: { increment: 1 },
-      },
-    }),
-    prisma.deliveryTracking.upsert({
-      where: { orderId },
-      update: { partnerId: partner.id, status: DeliveryStatus.ASSIGNED },
-      create: { orderId, partnerId: partner.id, status: DeliveryStatus.ASSIGNED },
-    }),
-    prisma.auditLog.create({
-      data: {
-        orderId,
-        action: "AUTO_ASSIGN",
-        fromStatus: OrderStatus.CONFIRMED,
-        toStatus: OrderStatus.ASSIGNED,
-        message: `[AUTO-ASSIGN] Partner ${partner.name} (${partner.phone}) → Order ${orderId}`,
-      },
-    }),
-  ]);
-
-  return { assigned: true, partnerId: partner.id, partnerName: partner.name };
-};
+import { assignBestPartner } from "./assignmentService";
 
 
 const runPostPaymentOrchestration = async (orderId: string) => {
@@ -76,10 +28,7 @@ const runPostPaymentOrchestration = async (orderId: string) => {
     },
   });
 
-  const assignment = await autoAssignPartner(
-    orderId,
-    String(order.customer.areaType)
-  );
+  const assignment = await assignBestPartner(orderId);
 
   return { ...assignment };
 };
@@ -93,7 +42,6 @@ const convertOrderToCash = async (orderId: string) => {
 
   if (!order) throw new AppError("Order not found", 404);
 
- 
   await prisma.payment.upsert({
     where: { orderId },
     update: {
@@ -110,7 +58,6 @@ const convertOrderToCash = async (orderId: string) => {
     },
   });
 
- 
   await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -119,7 +66,6 @@ const convertOrderToCash = async (orderId: string) => {
       amountPaid: 0,
     },
   });
-
 
   const confirmedOrder = await prisma.order.update({
     where: { id: orderId },
@@ -138,10 +84,7 @@ const convertOrderToCash = async (orderId: string) => {
     },
   });
 
-  const assignment = await autoAssignPartner(
-    orderId,
-    String(confirmedOrder.customer.areaType)
-  );
+  const assignment = await assignBestPartner(orderId);
 
   const finalOrder = await prisma.order.findUnique({ where: { id: orderId } });
 
@@ -176,17 +119,16 @@ const handleUpiPayment = async (orderId: string) => {
   }
 
   // MOCK GATEWAY
-const paymentSuccess = Math.random() < 0.85; 
- //const paymentSuccess = false;
-
+  const paymentSuccess = Math.random() < 0.85;
+  // const paymentSuccess = false;
 
   if (!paymentSuccess) {
-    const updatedPayment = await prisma.payment.upsert({
+    await prisma.payment.upsert({
       where: { orderId },
       update: {
         status: PaymentStatus.FAILED,
         method: PaymentMethod.UPI,
-        retryCount: { increment: 0 }, // already incremented by retryPayment
+        retryCount: { increment: 0 },
       },
       create: {
         orderId,
@@ -259,7 +201,6 @@ const handleCashPayment = async (orderId: string) => {
     };
   }
 
- 
   await prisma.payment.upsert({
     where: { orderId },
     update: {
@@ -276,7 +217,6 @@ const handleCashPayment = async (orderId: string) => {
     },
   });
 
-
   await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -285,7 +225,6 @@ const handleCashPayment = async (orderId: string) => {
       amountPaid: 0,
     },
   });
-
 
   const confirmedOrder = await prisma.order.update({
     where: { id: orderId },
@@ -304,10 +243,7 @@ const handleCashPayment = async (orderId: string) => {
     },
   });
 
-  const assignment = await autoAssignPartner(
-    orderId,
-    String(confirmedOrder.customer.areaType)
-  );
+  const assignment = await assignBestPartner(orderId);
 
   const finalOrder = await prisma.order.findUnique({ where: { id: orderId } });
 
@@ -352,7 +288,6 @@ export const processPayment = async (data: {
     order.payment &&
     order.payment.retryCount >= 3
   ) {
-    // Auto-convert to cash instead of throwing
     return convertOrderToCash(data.orderId);
   }
 
@@ -398,11 +333,9 @@ export const retryPayment = async (orderId: string) => {
     });
   }
 
- 
   if (payment.retryCount >= 3) {
     return convertOrderToCash(orderId);
   }
-
 
   const updatedPayment = await prisma.payment.update({
     where: { orderId },
@@ -422,7 +355,6 @@ export const retryPayment = async (orderId: string) => {
     const currentRetryCount =
       latestPayment?.retryCount ?? updatedPayment.retryCount;
 
-    
     if (currentRetryCount >= 3) {
       return convertOrderToCash(orderId);
     }
@@ -455,7 +387,6 @@ export const collectCashPayment = async (
   }
 
   if (order.paymentStatus === PaymentStatus.SUCCESS) {
-    // Already collected — still try to generate invoice if missing
     const existingInvoice = await prisma.invoice.findUnique({
       where: { orderId },
     });
@@ -473,7 +404,6 @@ export const collectCashPayment = async (
     };
   }
 
-  
   await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -508,12 +438,10 @@ export const collectCashPayment = async (
     },
   });
 
-  
   try {
     await generateInvoice(orderId);
   } catch (error) {
     console.error("[collectCashPayment] INVOICE GENERATION FAILED:", error);
-    // Log but don't fail the cash collection
     await prisma.auditLog.create({
       data: {
         orderId,
