@@ -1,15 +1,10 @@
 import { z } from "zod";
 
-/**
- * STRICT PHONE RULE (CRITICAL FIX)
- */
 const phone = z
   .string()
   .regex(/^[0-9]{10}$/, "Invalid phone number");
 
-/**
- * REGISTER CUSTOMER VALIDATION
- */
+
 export const registerSchema = z.object({
   name: z.string().min(2, "Name too short"),
 
@@ -25,9 +20,7 @@ export const registerSchema = z.object({
   subsidyEligible: z.boolean().optional(),
 });
 
-/**
- * OTP VALIDATION
- */
+
 export const sendOtpSchema = z.object({
   phone,
 });

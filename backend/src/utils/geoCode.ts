@@ -5,34 +5,42 @@ export interface Coordinates {
 
 export async function geocodeAddress(address: string): Promise<Coordinates | null> {
   try {
-    if (!address) return null;
+    if (!address?.trim()) return null;
 
-    const url = `hnstreetmattps://nominatim.opep.org/search?format=json&q=${encodeURIComponent(address)}`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
 
     const res = await fetch(url, {
       headers: {
-        "User-Agent": "gas-cylinder-booking-system"
-      }
+        "User-Agent": "gas-cylinder-booking-system",
+        "Accept": "application/json",
+      },
     });
 
     if (!res.ok) {
-      console.error("[OSM] HTTP error:", res.status);
+      console.error("[GEO] HTTP error:", res.status);
       return null;
     }
 
     const data = await res.json();
 
-    if (!data || data.length === 0) {
-      console.warn("[OSM] No results for:", address);
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn("[GEO] No results for:", address);
+      return null;
+    }
+
+    const first = data[0];
+
+    if (!first?.lat || !first?.lon) {
+      console.warn("[GEO] Invalid response format:", first);
       return null;
     }
 
     return {
-      latitude: parseFloat(data[0].lat),
-      longitude: parseFloat(data[0].lon),
+      latitude: Number(first.lat),
+      longitude: Number(first.lon),
     };
   } catch (err) {
-    console.error("[OSM] Geocode failed:", err);
+    console.error("[GEO] Failed completely:", err);
     return null;
   }
 }

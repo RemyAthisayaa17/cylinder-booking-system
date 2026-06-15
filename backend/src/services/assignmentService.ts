@@ -53,25 +53,27 @@ export const assignBestPartner = async (
   }
 
   if (order.partnerId) {
-    // Already assigned — idempotent return
+  
     return { assigned: true, partnerId: order.partnerId };
   }
 
-  const customerAreaType = String(order.customer.areaType);
+const customerAreaType = String(order.customer.areaType);
 
-  const allAvailable = await prisma.deliveryPartner.findMany({
-    where: { currentStatus: PartnerStatus.AVAILABLE },
-    orderBy: { totalDeliveries: "asc" },
-  });
+const availablePartners = await prisma.deliveryPartner.findMany({
+  where: {
+    currentStatus: PartnerStatus.AVAILABLE,
+    serviceZone: customerAreaType, 
+  },
+  orderBy: {
+    totalDeliveries: "asc",
+  },
+});
 
-  if (allAvailable.length === 0) return { assigned: false };
+if (availablePartners.length === 0) {
+  return { assigned: false };
+}
 
-  const zoneMatched = allAvailable.filter(
-    (p) => p.serviceZone === customerAreaType
-  );
-  const pool = zoneMatched.length > 0 ? zoneMatched : allAvailable;
-  const partner = pool[0];
-
+const partner = availablePartners[0];
   await executeAssignment(orderId, partner.id, partner.name);
 
   return { assigned: true, partnerId: partner.id, partnerName: partner.name };
@@ -102,20 +104,23 @@ export const assignPendingOrders = async (): Promise<{
 
   for (const order of pendingOrders) {
   
-    const customerAreaType = String(order.customer.areaType);
+const customerAreaType = String(order.customer.areaType);
 
-    const allAvailable = await prisma.deliveryPartner.findMany({
-      where: { currentStatus: PartnerStatus.AVAILABLE },
-      orderBy: { totalDeliveries: "asc" },
-    });
+const availablePartners = await prisma.deliveryPartner.findMany({
+  where: {
+    currentStatus: PartnerStatus.AVAILABLE,
+    serviceZone: customerAreaType,
+  },
+  orderBy: {
+    totalDeliveries: "asc",
+  },
+});
 
-    if (allAvailable.length === 0) break; // No more partners; stop early
+if (availablePartners.length === 0) continue;
 
-    const zoneMatched = allAvailable.filter(
-      (p) => p.serviceZone === customerAreaType
-    );
-    const pool = zoneMatched.length > 0 ? zoneMatched : allAvailable;
-    const partner = pool[0];
+const partner = availablePartners[0];
+
+
 
     try {
       await executeAssignment(order.id, partner.id, partner.name);

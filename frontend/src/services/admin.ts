@@ -10,10 +10,7 @@ api.interceptors.request.use(config => {
   return config;
 });
 
-/**
- * POST /api/admin/partners
- * Creates a delivery partner (admin only).
- */
+
 export const createPartner = async (data: {
   name: string;
   phone: string;
@@ -23,21 +20,13 @@ export const createPartner = async (data: {
   return res.data;
 };
 
-/**
- * GET /api/admin/partners
- * Returns all delivery partners.
- * Each record: { id, name, phone, serviceZone, currentStatus, totalDeliveries, ... }
- */
+
 export const getPartners = async () => {
   const res = await api.get('/admin/partners');
   return res.data;
 };
 
-/**
- * GET /api/admin/assignments
- * Returns auto-assignment audit log.
- * Each record: { orderId, customerName, partnerName, assignedAt, status }
- */
+
 export const getAutoAssignmentLog = async () => {
   const res = await api.get('/admin/assignments');
   return res.data;

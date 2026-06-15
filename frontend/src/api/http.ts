@@ -33,8 +33,7 @@ http.interceptors.response.use(
 
     if (status === 401) {
       localStorage.clear();
-      showError('Session expired — login again');
-      window.location.href = '/login';
+     
     } else if (status === 429) {
       showError('Too many requests');
     } else if (status >= 500) {

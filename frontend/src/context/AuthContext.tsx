@@ -11,11 +11,7 @@ interface AuthCtx {
 
 const Ctx = createContext<AuthCtx | null>(null);
 
-/**
- * Decode role from JWT payload (base64 middle segment).
- * Role MUST come from the backend-signed JWT — never trust a raw localStorage value.
- * If the token is missing or malformed, returns null (forces re-login).
- */
+
 function decodeRoleFromToken(token: string): Role | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
@@ -29,11 +25,7 @@ function decodeRoleFromToken(token: string): Role | null {
   }
 }
 
-/**
- * Build initial user from localStorage.
- * Cross-validates role between stored user object and JWT — if they differ,
- * the JWT (backend-signed) wins. Clears storage if JWT is invalid.
- */
+
 function initUser(): AuthUser | null {
   try {
     const token = localStorage.getItem('token');
@@ -44,7 +36,7 @@ function initUser(): AuthUser | null {
     // Decode role from JWT — this is the authoritative value
     const roleFromToken = decodeRoleFromToken(token);
     if (!roleFromToken) {
-      // JWT invalid / expired shape — clear and force re-login
+      
       localStorage.clear();
       return null;
     }
@@ -93,4 +85,4 @@ export function useAuth() {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error('useAuth must be inside AuthProvider');
   return ctx;
-}
+} 

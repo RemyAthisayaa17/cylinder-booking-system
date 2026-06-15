@@ -36,7 +36,7 @@ export const calculatePrice = async (
 
   // Base calculation
   const base     = round2(pricing.basePrice * quantity);
-  const delivery = round2(pricing.deliveryCharge); // flat per-order, not per-unit
+  const delivery = round2(pricing.deliveryCharge);
   const tax      = round2((base * pricing.taxPercentage) / 100);
 
   

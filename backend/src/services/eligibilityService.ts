@@ -59,3 +59,4 @@ export const checkEligibility = async (customerId: string) => {
     reason: "Eligible for booking"
   };
 };
+ 

@@ -8,6 +8,7 @@ export const createPartnerService = async (data: {
   phone: string;
   serviceZone: string;
 }) => {
+  
   blockAdminPhone(data.phone, "partner creation");
 
   const existingPartner = await prisma.deliveryPartner.findUnique({
@@ -18,13 +19,13 @@ export const createPartnerService = async (data: {
   const existingCustomer = await prisma.customer.findUnique({
     where: { phone: data.phone },
   });
+
   if (existingCustomer)
-    throw new AppError("Phone already registered as customer", 409);
+    throw new AppError("Phone already registered ", 409);
 
   const partner = await prisma.deliveryPartner.create({ data });
 
-  // BUG #1 FIX: A new partner is AVAILABLE immediately — sweep any CONFIRMED
-  // orders that were waiting for a partner.
+
   assignPendingOrders().catch((err) =>
     console.error("[adminService] assignPendingOrders after create failed:", err)
   );

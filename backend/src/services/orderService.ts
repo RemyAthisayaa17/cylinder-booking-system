@@ -159,14 +159,14 @@ export const createOrder = async (data: {
 
 
   const coords = await geocodeAddress(data.deliveryAddress);
-
+  
   if (!coords) {
     console.warn(
       `[orderService] Geocoding failed for address: ${data.deliveryAddress}`
     );
+   
   }
-
-  const order = await prisma.order.create({
+const order = await prisma.order.create({
     data: {
       customerId: data.customerId,
       cylinderType: data.cylinderType,
@@ -378,7 +378,9 @@ export const cancelOrder = async (
       "Refund will be processed within 24-48 hours";
 
     const now = new Date();
-
+    
+  //  const refundEligibleAt = new Date(
+   //   now.getTime() +48*60* 60 * 1000
     const refundEligibleAt = new Date(
       now.getTime() + 60 * 1000
     );
@@ -435,36 +437,7 @@ export const cancelOrder = async (
 export const processPendingRefunds = async () => {
   const now = new Date();
 
-  console.log("================================");
-  console.log("Server Time:", now.toISOString());
-
   try {
-    // Debug: show all pending refunds
-    const debugRows = await prisma.payment.findMany({
-      where: {
-        refundStatus: "PENDING",
-      },
-    });
-
-    console.log("Pending Refund Rows:", debugRows);
-
-    // Debug: run raw SQL against the same DB connection
-    const rawResult = await prisma.$queryRaw`
-      SELECT
-        id,
-        "orderId",
-        "refundStatus",
-        "refundEligibleAt",
-        NOW() as "dbNow"
-      FROM payments
-      WHERE
-        "refundStatus" = 'PENDING'
-        AND "refundEligibleAt" <= NOW()
-    `;
-
-    console.log("RAW SQL RESULT:", rawResult);
-
-    // Actual Prisma query
     const pendingRefunds = await prisma.payment.findMany({
       where: {
         refundStatus: "PENDING",
@@ -474,12 +447,7 @@ export const processPendingRefunds = async () => {
       },
     });
 
-    console.log("PRISMA RESULT:", pendingRefunds);
-    console.log("Pending refunds found:", pendingRefunds.length);
-    console.log("================================");
-
     if (pendingRefunds.length === 0) {
-      console.log("No refunds to process right now.");
       return {
         processed: 0,
         results: [],
@@ -494,8 +462,6 @@ export const processPendingRefunds = async () => {
 
     for (const payment of pendingRefunds) {
       try {
-        console.log("Processing refund for:", payment.orderId);
-
         const updated = await prisma.payment.updateMany({
           where: {
             id: payment.id,
@@ -507,13 +473,7 @@ export const processPendingRefunds = async () => {
           },
         });
 
-        if (updated.count === 0) {
-          console.log(
-            "Refund already processed by another tick, skipping:",
-            payment.orderId
-          );
-          continue;
-        }
+        if (updated.count === 0) continue;
 
         await prisma.auditLog.create({
           data: {
@@ -530,11 +490,7 @@ export const processPendingRefunds = async () => {
           orderId: payment.orderId,
           status: "SUCCESS",
         });
-
-        console.log("Refund completed:", payment.orderId);
       } catch (err) {
-        console.error("Refund failed for:", payment.orderId, err);
-
         results.push({
           paymentId: payment.id,
           orderId: payment.orderId,
@@ -548,8 +504,6 @@ export const processPendingRefunds = async () => {
       results,
     };
   } catch (err) {
-    console.error("Refund scheduler error:", err);
-
     return {
       processed: 0,
       results: [],

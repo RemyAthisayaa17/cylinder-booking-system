@@ -20,11 +20,11 @@ export const sendOtp = (phone: string) =>
 export const verifyOtp = (phone: string, otp: string) =>
   http.post<ApiResponse<VerifyOtpData>>('/api/auth/verify-otp', { phone, otp }).then(r => r.data);
 
-// POST /api/auth/partner-send-otp (partner OTP — PRD §6)
+// POST /api/auth/partner-send-otp 
 export const sendPartnerOtp = (phone: string) =>
   http.post<ApiResponse<SendOtpData>>('/api/auth/partner-send-otp', { phone }).then(r => r.data);
 
-// POST /api/auth/partner-verify-otp (partner OTP — PRD §6)
+// POST /api/auth/partner-verify-otp
 export const verifyPartnerOtp = (phone: string, otp: string) =>
   http.post<ApiResponse<PartnerLoginData>>('/api/auth/partner-verify-otp', { phone, otp }).then(r => r.data);
 

@@ -60,7 +60,7 @@ export interface PartnerLoginData {
 }
 
 // POST /api/auth/admin-login → data  (RBAC: role + admin)
-// Fixed admin phone validated SERVER-SIDE only.
+// Fixed admin phone 
 export interface AdminLoginData {
   message: string;
   token:   string;
@@ -209,7 +209,7 @@ export interface Invoice {
 }
 
 // ── localStorage order cache ──────────────────────────────────────────────────
-// Minimal record stored after createOrder (only what backend returns on POST)
+
 export interface CachedOrder {
   orderId:         string;
   status:          OrderStatus;

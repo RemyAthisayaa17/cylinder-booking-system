@@ -23,8 +23,7 @@ export const completeDelivery = (
   formData.append('afterPhoto', afterPhoto);
   formData.append('signaturePhoto', signaturePhoto);
 
-  // Do NOT set Content-Type here. The http interceptor deletes it for FormData
-  // so axios can auto-set multipart/form-data with the correct boundary.
+
   return http
     .post<ApiResponse<DeliveryActionData>>('/api/delivery/complete', formData)
     .then((r) => r.data);

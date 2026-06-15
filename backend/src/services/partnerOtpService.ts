@@ -3,6 +3,7 @@ import { AppError } from "../utils/AppError";
 import { generateToken } from "../utils/jwt";
 import { sendTwilioOtp, verifyTwilioOtp } from "./twilioService";
 import { toDbPhone, toTwilioPhone } from "../utils/phoneUtil";
+import { blockAdminPhone } from "../utils/roleGuards";
 
 const PURPOSE = "PARTNER";
 const RESEND_COOLDOWN_MS = 30 * 1000;
@@ -12,6 +13,7 @@ const generateOtp = () =>
 
 
 export const sendPartnerOtp = async (phone: string) => {
+  blockAdminPhone(phone, "partner OTP login");
   const dbPhone = toDbPhone(phone);
 
   const partner = await prisma.deliveryPartner.findUnique({
@@ -77,6 +79,7 @@ export const sendPartnerOtp = async (phone: string) => {
 
 
 export const verifyPartnerOtp = async (phone: string, otp: string) => {
+  blockAdminPhone(phone, "partner OTP login");
   const dbPhone = toDbPhone(phone);
 
   const partner = await prisma.deliveryPartner.findUnique({

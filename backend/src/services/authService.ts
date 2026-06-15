@@ -16,7 +16,13 @@ export const registerCustomer = async (data: any) => {
   });
 
   if (existing) throw new AppError("Customer already exists", 409);
+const existingPartner = await prisma.deliveryPartner.findUnique({
+  where: { phone: data.phone }
+});
 
+if (existingPartner) {
+  throw new AppError("Phone already registered", 409);
+}
   const customer = await prisma.customer.create({ data });
 
   return {

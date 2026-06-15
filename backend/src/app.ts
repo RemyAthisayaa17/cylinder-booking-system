@@ -38,7 +38,7 @@ app.use(
 app.use(morgan("dev"));
 
 // ------------------- REQUEST TRACING + RATE LIMITING -------------------
-// Must be registered before routes so every request is logged and throttled.
+
 app.use(requestLogger);
 app.use(apiLimiter);
 

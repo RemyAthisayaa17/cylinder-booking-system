@@ -4,7 +4,6 @@ import { AppError } from "./AppError";
 
 export type OrderStatus = PrismaOrderStatus;
 
-
 const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   PLACED: ["CONFIRMED", "CANCELLED"],
 
