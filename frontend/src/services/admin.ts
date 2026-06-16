@@ -27,6 +27,21 @@ export const getPartners = async () => {
 };
 
 
+export const updatePartner = async (
+  id: string,
+  data: { name: string; phone: string; serviceZone: string }
+) => {
+  const res = await api.patch(`/admin/partners/${id}`, data);
+  return res.data;
+};
+
+
+export const deletePartner = async (id: string) => {
+  const res = await api.delete(`/admin/partners/${id}`);
+  return res.data;
+};
+
+
 export const getAutoAssignmentLog = async () => {
   const res = await api.get('/admin/assignments');
   return res.data;
