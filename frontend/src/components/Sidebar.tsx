@@ -2,7 +2,6 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Flame,
   Activity,
-  UserPlus,
   Users,
   LogOut,
   LayoutDashboard,
@@ -27,9 +26,8 @@ const NAV: Record<Role, { to: string; icon: typeof Flame; label: string }[]> = {
     { to: '/partner/orders',    icon: Truck,           label: 'My Orders' },
   ],
   ADMIN: [
-    { to: '/admin/assignments',     icon: Activity,  label: 'Auto Assignment'   },
-    { to: '/admin/partners/create', icon: UserPlus,  label: 'Create Partner'    },
-    { to: '/admin/partners',        icon: Users,     label: 'Partner Table'     },
+    { to: '/admin/assignments', icon: Activity, label: 'Auto Assignment' },
+    { to: '/admin/partners',    icon: Users,    label: 'Partner Table'   },
   ],
 };
 

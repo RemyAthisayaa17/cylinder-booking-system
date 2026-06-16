@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { Users, UserCheck, Truck, BarChart3, Star, Pencil, Trash2, X, AlertTriangle } from 'lucide-react';
+import { Users, UserCheck, Truck, BarChart3, Star, Pencil, Trash2, X, AlertTriangle, UserPlus } from 'lucide-react';
 import { showError, showSuccess } from '../../utils/toast';
-import { getPartners, updatePartner, deletePartner } from '../../services/admin';
+import { getPartners, createPartner, updatePartner, deletePartner } from '../../services/admin';
 
 type Partner = {
   id: string;
@@ -38,7 +38,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ── Lightweight floating tooltip — absolutely positioned, never affects layout ──
 function Tooltip({ label, children }: { label: string; children: ReactNode }) {
   const [show, setShow] = useState(false);
   return (
@@ -61,7 +60,6 @@ function Tooltip({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-// ── Rating cell ──
 function RatingCell({ rating }: { rating: number }) {
   return (
     <Tooltip label={`${'★'.repeat(5)}`}>
@@ -70,6 +68,141 @@ function RatingCell({ rating }: { rating: number }) {
         {rating.toFixed(1)}
       </span>
     </Tooltip>
+  );
+}
+
+// ── Add Partner Modal ────────────────────────────────────────────────────────
+function AddPartnerModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (partner: Partner) => void;
+}) {
+  const [form, setForm] = useState({ name: '', phone: '', serviceZone: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  const validate = (): string | null => {
+    if (!form.name.trim()) return 'Name is required';
+    const cleanPhone = form.phone.replace(/\D/g, '').trim();
+    if (!cleanPhone) return 'Phone number is required';
+    if (cleanPhone.length !== 10) return 'Phone must be exactly 10 digits';
+    if (!form.serviceZone) return 'Area type is required';
+    return null;
+  };
+
+  const handleCreate = async () => {
+    const err = validate();
+    if (err) { showError(err); return; }
+
+    const cleanPhone = form.phone.replace(/\D/g, '').trim();
+    setSubmitting(true);
+    try {
+      const res = await createPartner({ name: form.name.trim(), phone: cleanPhone, serviceZone: form.serviceZone });
+      showSuccess('Partner created successfully');
+      onCreated(res.data);
+      onClose();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { msg?: string } }; message?: string };
+      showError(err?.response?.data?.msg || err?.message || 'Failed to create partner');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center">
+              <UserPlus size={15} className="text-brand-600" />
+            </div>
+            <div>
+              <p className="font-bold text-gray-900 text-sm">Add Delivery Partner</p>
+              <p className="text-xs text-gray-400">Fill in the details below</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
+            aria-label="Close"
+          >
+            <X size={16} className="text-gray-500" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Full Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition-all"
+              placeholder="e.g. Ramesh Kumar"
+              value={form.name}
+              onChange={e => setForm({ ...form, name: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Phone Number <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-2">
+              <span className="flex items-center px-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500 flex-shrink-0 font-medium">
+                +91
+              </span>
+              <input
+                type="tel"
+                inputMode="numeric"
+                className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition-all"
+                placeholder="10-digit mobile number"
+                value={form.phone}
+                onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Area Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition-all appearance-none cursor-pointer"
+              value={form.serviceZone}
+              onChange={e => setForm({ ...form, serviceZone: e.target.value })}
+            >
+              <option value="">Select zone…</option>
+              <option value="URBAN">Urban</option>
+              <option value="RURAL">Rural</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/60">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={submitting}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700 shadow-brand transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? 'Creating…' : 'Create Partner'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -93,14 +226,10 @@ function EditPartnerModal({
   const handleSave = async () => {
     const cleanPhone = form.phone.replace(/\D/g, '').trim();
 
-    if (!form.name.trim() || !cleanPhone || !form.serviceZone) {
-      showError('All fields are required');
-      return;
-    }
-    if (cleanPhone.length !== 10) {
-      showError('Enter a valid 10-digit mobile number');
-      return;
-    }
+    if (!form.name.trim()) { showError('Name is required'); return; }
+    if (!cleanPhone) { showError('Phone number is required'); return; }
+    if (cleanPhone.length !== 10) { showError('Enter a valid 10-digit mobile number'); return; }
+    if (!form.serviceZone) { showError('Area type is required'); return; }
 
     setSubmitting(true);
     try {
@@ -121,7 +250,6 @@ function EditPartnerModal({
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center">
@@ -141,7 +269,6 @@ function EditPartnerModal({
           </button>
         </div>
 
-        {/* Body */}
         <div className="px-5 py-5 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -188,7 +315,6 @@ function EditPartnerModal({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/60">
           <button
             onClick={onClose}
@@ -255,11 +381,12 @@ function DeleteConfirmModal({
 }
 
 export default function PartnerTable() {
-  const [partners, setPartners] = useState<Partner[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [editTarget, setEditTarget] = useState<Partner | null>(null);
+  const [partners, setPartners]       = useState<Partner[]>([]);
+  const [loading, setLoading]         = useState(false);
+  const [addOpen, setAddOpen]         = useState(false);
+  const [editTarget, setEditTarget]   = useState<Partner | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Partner | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting]       = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -298,22 +425,31 @@ export default function PartnerTable() {
   const totalDel  = partners.reduce((acc, p) => acc + (p.completedDeliveries ?? 0), 0);
 
   const stats = [
-    { icon: <Users size={18} className="text-brand-600" />,     iconBg: 'bg-brand-50',   label: 'Total Partners',    value: total     },
-    { icon: <UserCheck size={18} className="text-emerald-600" />, iconBg: 'bg-emerald-50', label: 'Available',         value: available },
-    { icon: <Truck size={18} className="text-amber-600" />,     iconBg: 'bg-amber-50',   label: 'Busy',              value: busy      },
-    { icon: <BarChart3 size={18} className="text-blue-600" />,  iconBg: 'bg-blue-50',    label: 'Completed Deliveries', value: totalDel },
+    { icon: <Users size={18} className="text-brand-600" />,      iconBg: 'bg-brand-50',   label: 'Total Partners',      value: total     },
+    { icon: <UserCheck size={18} className="text-emerald-600" />, iconBg: 'bg-emerald-50', label: 'Available',           value: available },
+    { icon: <Truck size={18} className="text-amber-600" />,      iconBg: 'bg-amber-50',   label: 'Busy',                value: busy      },
+    { icon: <BarChart3 size={18} className="text-blue-600" />,   iconBg: 'bg-blue-50',    label: 'Completed Deliveries', value: totalDel },
   ];
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">
-          Delivery Partner Table
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Manage delivery partners and monitor delivery capacity.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">
+            Delivery Partner Table
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Manage delivery partners and monitor delivery capacity.
+          </p>
+        </div>
+        <button
+          onClick={() => setAddOpen(true)}
+          className="inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-95 bg-brand-600 text-white hover:bg-brand-700 shadow-brand px-4 py-2.5 text-sm flex-shrink-0"
+        >
+          <UserPlus size={15} />
+          Add Partner
+        </button>
       </div>
 
       {/* Stats Cards */}
@@ -330,105 +466,96 @@ export default function PartnerTable() {
       </div>
 
       {/* Table Card */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-card">
         {loading ? (
           <div className="p-8 text-center text-sm text-gray-400">Loading partners…</div>
         ) : partners.length === 0 ? (
           <div className="p-8 text-center text-sm text-gray-400">No delivery partners found.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5 whitespace-nowrap">
-                    Partner
-                  </th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5 whitespace-nowrap">
-                    Phone
-                  </th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5 whitespace-nowrap">
-                    Zone
-                  </th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5 whitespace-nowrap">
-                    Status
-                  </th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5 whitespace-nowrap">
-                    Deliveries
-                  </th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5 whitespace-nowrap">
-                    Rating
-                  </th>
-                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5 whitespace-nowrap">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {partners.map(p => (
-                  <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
-                          <span className="text-brand-700 text-xs font-bold">
-                            {p.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <p className="font-semibold text-gray-900 text-sm">{p.name}</p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/60">
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Partner</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Phone</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Zone</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Status</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Deliveries</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Rating</th>
+                <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {partners.map(p => (
+                <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
+                        <span className="text-brand-700 text-xs font-bold">
+                          {p.name.charAt(0).toUpperCase()}
+                        </span>
                       </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-gray-600 text-sm">{p.phone}</td>
-                    <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
-                        {p.serviceZone}
+                      <p className="font-semibold text-gray-900 text-sm">{p.name}</p>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5 text-gray-600 text-sm">{p.phone}</td>
+                  <td className="px-5 py-3.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
+                      {p.serviceZone}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <StatusBadge status={p.currentStatus ?? 'AVAILABLE'} />
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                        Completed {p.completedDeliveries ?? 0}
                       </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <StatusBadge status={p.currentStatus ?? 'AVAILABLE'} />
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex flex-col gap-1.5">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                          Completed {p.completedDeliveries ?? 0}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
-                          Pending {p.pendingDeliveries ?? 0}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <RatingCell rating={p.rating ?? 5.0} />
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Tooltip label="Edit">
-                          <button
-                            onClick={() => setEditTarget(p)}
-                            aria-label="Edit partner"
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-brand-700 hover:bg-brand-50 transition-colors"
-                          >
-                            <Pencil size={15} />
-                          </button>
-                        </Tooltip>
-                        <Tooltip label="Delete">
-                          <button
-                            onClick={() => setDeleteTarget(p)}
-                            aria-label="Delete partner"
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </Tooltip>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                        Pending {p.pendingDeliveries ?? 0}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <RatingCell rating={p.rating ?? 5.0} />
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Tooltip label="Edit">
+                        <button
+                          onClick={() => setEditTarget(p)}
+                          aria-label="Edit partner"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-brand-700 hover:bg-brand-50 transition-colors"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                      </Tooltip>
+                      <Tooltip label="Delete">
+                        <button
+                          onClick={() => setDeleteTarget(p)}
+                          aria-label="Delete partner"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
+
+      {addOpen && (
+        <AddPartnerModal
+          onClose={() => setAddOpen(false)}
+          onCreated={partner => setPartners(prev => [partner, ...prev])}
+        />
+      )}
 
       {editTarget && (
         <EditPartnerModal
