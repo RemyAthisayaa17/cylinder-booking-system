@@ -44,7 +44,7 @@ export interface VerifyOtpData {
   customer: { id: string; name: string; phone: string };
 }
 
-// POST /api/auth/partner-login → data  (RBAC: role + partner)
+// POST /api/auth/partner-login
 export interface PartnerLoginData {
   message: string;
   token:   string;
@@ -77,7 +77,7 @@ export interface AuthUser {
 }
 
 // ── Order ─────────────────────────────────────────────────────────────────────
-// POST /api/orders → data: { orderId, status, amount }  (NOT full order)
+// POST /api/orders 
 export interface CreateOrderData {
   orderId: string;
   status:  OrderStatus;
@@ -192,14 +192,14 @@ export interface GenerateInvoiceData {
   totalAmount: number;
 }
 
-// GET /api/invoices/:orderId → full Invoice with customer + order includes
+// GET /api/invoices/:orderId 
 export interface Invoice {
   id:             string;
   orderId:        string;
   customerId:     string;
   customer:       Customer;
   order:          Order;
-  // Backend: cylinderPrice = amountDue (all-inclusive); deliveryCharge/tax/subsidy stored as 0
+
   cylinderPrice:  number;
   deliveryCharge: number;
   subsidy:        number;

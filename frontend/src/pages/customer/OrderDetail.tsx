@@ -19,6 +19,7 @@ import { processPayment, retryPayment, collectCashPayment } from '../../services
 import { startDelivery, markArrived } from '../../services/delivery';
 import { Btn, Badge, Spinner } from '../../components/index';
 import PaymentModal from '../../components/PaymentModal';
+import MapModal from '../../components/MapModal';
 
 import {
   statusBadge,
@@ -103,15 +104,6 @@ function SecondaryBtn({
 }
 
 // ── Delivery partner guided workflow ──────────────────────────────────────────
-// Business logic mapping:
-//   ASSIGNED         → Step 1: Start Delivery  (calls startDelivery)
-//   OUT_FOR_DELIVERY → Step 2: Navigate (opens map — no API)
-//                    → Step 3: Arrived  (calls markArrived — sends SMS only, no status change)
-//                              "arrived" is tracked locally via useState after tap
-//                    → Step 4: Upload Proof (navigates to proof page)
-//   DELIVERED        → UPI: done
-//                    → CASH + paymentStatus PENDING: Step 5: Cash Collected (calls collectCashPayment)
-//   DELIVERED + CASH + paymentStatus SUCCESS → fully done
 function PartnerWorkflow({
   order,
   busy,
@@ -127,22 +119,30 @@ function PartnerWorkflow({
   // Track locally so the button disappears after tapping.
   const [arrivedDone, setArrivedDone] = useState(false);
 
+  // ── Map modal state ────────────────────────────────────────────────────────
+  // Replaces the previous window.open() / new-tab behaviour.
+  const [mapOpen, setMapOpen] = useState(false);
+
   const isCash        = order.paymentMethod === 'CASH';
   const isAssigned    = order.status === 'ASSIGNED';
   const isOFD         = order.status === 'OUT_FOR_DELIVERY';
   const isDelivered   = order.status === 'DELIVERED';
   const cashCollected = isCash && order.paymentStatus === 'SUCCESS';
 
-  const openMap = () => {
-    const hasCoords =
-      typeof order.latitude  === 'number' &&
-      typeof order.longitude === 'number' &&
-      !(order.latitude === 0 && order.longitude === 0);
-    const url = hasCoords
-      ? `https://www.openstreetmap.org/?mlat=${order.latitude}&mlon=${order.longitude}#map=18/${order.latitude}/${order.longitude}`
-      : `https://www.openstreetmap.org/search?query=${encodeURIComponent(order.deliveryAddress)}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
+  // ── Determine whether we have usable coordinates ───────────────────────────
+  // The backend geocodes the delivery address when the order is created and
+  // stores latitude/longitude on the Order record. We use those here.
+  // If they are missing (geocoding failed), the modal still opens but shows
+  // the address as a fallback search — so we always have something to show.
+  const hasCoords =
+    typeof order.latitude  === 'number' &&
+    typeof order.longitude === 'number' &&
+    !(order.latitude === 0 && order.longitude === 0);
+
+  // Fallback coords: Chennai city centre — only used when the order has no
+  // stored coordinates. The modal will show the correct address text either way.
+  const mapLat = hasCoords ? (order.latitude  as number) : 13.0827;
+  const mapLng = hasCoords ? (order.longitude as number) : 80.2707;
 
   // ── Fully completed ──────────────────────────────────────────────────────────
   if (isDelivered && (!isCash || cashCollected)) {
@@ -224,51 +224,69 @@ function PartnerWorkflow({
     // After "Arrived" is tapped locally, hide Navigate+Arrived and show Upload Proof
     if (arrivedDone) {
       return (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6 mt-5">
-          <p className="text-sm font-bold text-gray-900 mb-1">Delivery Steps</p>
-          <div className="divide-y divide-gray-50">
-            <DoneStep label="Started Delivery" />
-            <DoneStep label="Navigated to Address" />
-            <DoneStep label="Arrived at Location" />
+        <>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6 mt-5">
+            <p className="text-sm font-bold text-gray-900 mb-1">Delivery Steps</p>
+            <div className="divide-y divide-gray-50">
+              <DoneStep label="Started Delivery" />
+              <DoneStep label="Navigated to Address" />
+              <DoneStep label="Arrived at Location" />
+            </div>
+            <div className="pt-4 mt-2">
+              <PrimaryBtn
+                onClick={() => navigate(`/partner/delivery-proof/${order.id}`)}
+                icon={<Camera size={16} />}
+              >
+                Upload Delivery Proof
+              </PrimaryBtn>
+            </div>
           </div>
-          <div className="pt-4 mt-2">
-            <PrimaryBtn
-              onClick={() => navigate(`/partner/delivery-proof/${order.id}`)}
-              icon={<Camera size={16} />}
-            >
-              Upload Delivery Proof
-            </PrimaryBtn>
-          </div>
-        </div>
+        </>
       );
     }
 
     // Navigate + Arrived phase
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6 mt-5">
-        <p className="text-sm font-bold text-gray-900 mb-1">Delivery Steps</p>
-        <div className="divide-y divide-gray-50 mb-4">
-          <DoneStep label="Started Delivery" />
+      <>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-6 mt-5">
+          <p className="text-sm font-bold text-gray-900 mb-1">Delivery Steps</p>
+          <div className="divide-y divide-gray-50 mb-4">
+            <DoneStep label="Started Delivery" />
+          </div>
+          <div className="space-y-3">
+            {/* ── "Navigate Address" now opens the in-app map modal ── */}
+            <SecondaryBtn
+              onClick={() => setMapOpen(true)}
+              icon={<Navigation size={15} />}
+            >
+              Navigate to Address
+            </SecondaryBtn>
+
+            <PrimaryBtn
+              onClick={() =>
+                act('arrived', async () => {
+                  await markArrived(order.id);
+                  setArrivedDone(true);
+                  showSuccess('Arrival notification sent!');
+                })
+              }
+              loading={busy === 'arrived'}
+              icon={<Navigation size={15} />}
+            >
+              Mark as Arrived
+            </PrimaryBtn>
+          </div>
         </div>
-        <div className="space-y-3">
-          <SecondaryBtn onClick={openMap} icon={<Navigation size={15} />}>
-            Navigate to Address
-          </SecondaryBtn>
-          <PrimaryBtn
-            onClick={() =>
-              act('arrived', async () => {
-                await markArrived(order.id);
-                setArrivedDone(true);
-                showSuccess('Arrival notification sent!');
-              })
-            }
-            loading={busy === 'arrived'}
-            icon={<Navigation size={15} />}
-          >
-            Mark as Arrived
-          </PrimaryBtn>
-        </div>
-      </div>
+
+        {/* ── Map modal rendered here, outside the card but inside the fragment ── */}
+        <MapModal
+          open={mapOpen}
+          onClose={() => setMapOpen(false)}
+          latitude={mapLat}
+          longitude={mapLng}
+          address={order.deliveryAddress}
+        />
+      </>
     );
   }
 
