@@ -129,18 +129,13 @@ function PartnerWorkflow({
   const isDelivered   = order.status === 'DELIVERED';
   const cashCollected = isCash && order.paymentStatus === 'SUCCESS';
 
-  // ── Determine whether we have usable coordinates ───────────────────────────
-  // The backend geocodes the delivery address when the order is created and
-  // stores latitude/longitude on the Order record. We use those here.
-  // If they are missing (geocoding failed), the modal still opens but shows
-  // the address as a fallback search — so we always have something to show.
+
   const hasCoords =
     typeof order.latitude  === 'number' &&
     typeof order.longitude === 'number' &&
     !(order.latitude === 0 && order.longitude === 0);
 
-  // Fallback coords: Chennai city centre — only used when the order has no
-  // stored coordinates. The modal will show the correct address text either way.
+
   const mapLat = hasCoords ? (order.latitude  as number) : 13.0827;
   const mapLng = hasCoords ? (order.longitude as number) : 80.2707;
 
@@ -221,7 +216,7 @@ function PartnerWorkflow({
 
   // ── OUT_FOR_DELIVERY: Navigate → Arrived → Upload Proof ─────────────────────
   if (isOFD) {
-    // After "Arrived" is tapped locally, hide Navigate+Arrived and show Upload Proof
+
     if (arrivedDone) {
       return (
         <>
@@ -256,7 +251,18 @@ function PartnerWorkflow({
           <div className="space-y-3">
             {/* ── "Navigate Address" now opens the in-app map modal ── */}
             <SecondaryBtn
-              onClick={() => setMapOpen(true)}
+              onClick={() => {
+                console.log('[OrderDetail] Navigate to Address clicked', {
+                  orderId: order.id,
+                  address: order.deliveryAddress,
+                  orderLatitude: order.latitude,
+                  orderLongitude: order.longitude,
+                  hasCoords,
+                  mapLat,
+                  mapLng,
+                });
+                setMapOpen(true);
+              }}
               icon={<Navigation size={15} />}
             >
               Navigate to Address

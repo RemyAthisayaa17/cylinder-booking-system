@@ -36,15 +36,17 @@ export default function Dashboard() {
       {/* Hero */}
       <div className="bg-gradient-to-r from-brand-600 to-brand-800 rounded-2xl p-7 text-white relative overflow-hidden">
         <div className="absolute right-0 top-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
-        <div className="relative">
-          <div className="flex items-center gap-2 mb-2 text-brand-200 text-sm">
-            <Flame size={15} /> Gas Cylinder Booking
+        <div className="relative flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2 text-brand-200 text-sm">
+              <Flame size={15} /> Gas Cylinder Booking
+            </div>
+            <h2 className="text-2xl font-bold mb-1">Hello, {user?.name?.split(' ')[0]}!</h2>
+            <p className="text-brand-200 text-sm">Need a refill? Book your cylinder now.</p>
           </div>
-          <h2 className="text-2xl font-bold mb-1">Hello, {user?.name?.split(' ')[0]}!</h2>
-          <p className="text-brand-200 text-sm mb-5">Need a refill? Book your cylinder now.</p>
           <Btn
             onClick={() => navigate('/orders/new')}
-            className="bg-white text-brand-700 hover:bg-brand-50 border-0 shadow-none"
+            className="bg-white text-brand-700 hover:bg-brand-50 border-0 shadow-none flex-shrink-0"
             icon={<ArrowRight size={14} />}
           >
             Book Cylinder

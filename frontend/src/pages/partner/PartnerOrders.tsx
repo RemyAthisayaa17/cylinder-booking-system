@@ -55,6 +55,9 @@ export default function PartnerOrders() {
           {orders.map((o) => {
             const s = statusBadge[o.status];
             const isCompleted = o.status === 'DELIVERED';
+            // Cancelled orders must never expose delivery-workflow actions
+            // (Continue Delivery, etc.) — only viewing details remains valid.
+            const isCancelled = o.status === 'CANCELLED';
 
             return (
               <div
@@ -125,7 +128,7 @@ export default function PartnerOrders() {
                       <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1.5">
                         <CheckCircle2 size={13} /> Delivery Completed
                       </span>
-                    ) : (
+                    ) : isCancelled ? null : (
                       <button
                         onClick={() => navigate(`/orders/${o.id}`)}
                         className="inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-95 bg-brand-700 text-white hover:bg-brand-800 shadow-brand px-4 py-2.5 text-xs"

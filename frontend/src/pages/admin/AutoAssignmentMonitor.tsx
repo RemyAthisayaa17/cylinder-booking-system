@@ -105,7 +105,7 @@ export default function AutoAssignmentMonitor() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/60">
-                  {['Order ID', 'Customer', 'Partner', 'Assigned At', 'Status'].map(h => (
+                  {['Customer', 'Partner', 'Assigned At', 'Status'].map(h => (
                     <th key={h} className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5 whitespace-nowrap">
                       {h}
                     </th>
@@ -115,9 +115,6 @@ export default function AutoAssignmentMonitor() {
               <tbody className="divide-y divide-gray-50">
                 {logs.map(log => (
                   <tr key={log.orderId} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-5 py-4 font-mono text-xs text-gray-500 whitespace-nowrap">
-                      {log.orderId.slice(0, 8)}…
-                    </td>
                     <td className="px-5 py-4 font-semibold text-gray-900">{log.customerName}</td>
                     <td className="px-5 py-4 text-gray-600">{log.partnerName}</td>
                     <td className="px-5 py-4 text-gray-400 text-xs whitespace-nowrap">

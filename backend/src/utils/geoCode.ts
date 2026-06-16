@@ -35,10 +35,14 @@ export async function geocodeAddress(address: string): Promise<Coordinates | nul
       return null;
     }
 
-    return {
+    const result = {
       latitude: Number(first.lat),
       longitude: Number(first.lon),
     };
+
+    console.log(`[GEO] Resolved "${address}" →`, result);
+
+    return result;
   } catch (err) {
     console.error("[GEO] Failed completely:", err);
     return null;

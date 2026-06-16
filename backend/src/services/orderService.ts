@@ -159,7 +159,12 @@ export const createOrder = async (data: {
 
 
   const coords = await geocodeAddress(data.deliveryAddress);
-  
+
+  console.log('[orderService] geocode result for new order:', {
+    address: data.deliveryAddress,
+    coords,
+  });
+
   if (!coords) {
     console.warn(
       `[orderService] Geocoding failed for address: ${data.deliveryAddress}`
