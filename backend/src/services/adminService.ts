@@ -61,6 +61,24 @@ export const updatePartnerService = async (
   blockAdminPhone(data.phone, "partner update");
 
   if (data.phone !== partner.phone) {
+  const phoneInUse = await prisma.deliveryPartner.findUnique({
+    where: { phone: data.phone },
+  });
+
+  if (phoneInUse) {
+    throw new AppError("Phone already in use", 409);
+  }
+
+  const existingCustomer = await prisma.customer.findUnique({
+    where: { phone: data.phone },
+  });
+
+  if (existingCustomer) {
+    throw new AppError("Phone already registered", 409);
+  }
+}
+
+  if (data.phone !== partner.phone) {
     const phoneInUse = await prisma.deliveryPartner.findUnique({ where: { phone: data.phone } });
     if (phoneInUse) throw new AppError("Phone already in use", 409);
   }

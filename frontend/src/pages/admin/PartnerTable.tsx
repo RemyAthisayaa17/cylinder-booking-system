@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { Users, UserCheck, Truck, BarChart3, Star, Pencil, Trash2, X, AlertTriangle, UserPlus } from 'lucide-react';
 import { showError, showSuccess } from '../../utils/toast';
@@ -14,6 +15,17 @@ type Partner = {
   pendingDeliveries: number;
   rating: number;
 };
+
+
+function useLockBodyScroll() {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+}
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -71,7 +83,7 @@ function RatingCell({ rating }: { rating: number }) {
   );
 }
 
-// ── Add Partner Modal ────────────────────────────────────────────────────────
+
 function AddPartnerModal({
   onClose,
   onCreated,
@@ -79,6 +91,8 @@ function AddPartnerModal({
   onClose: () => void;
   onCreated: (partner: Partner) => void;
 }) {
+  useLockBodyScroll();
+
   const [form, setForm] = useState({ name: '', phone: '', serviceZone: '' });
   const [submitting, setSubmitting] = useState(false);
 
@@ -110,7 +124,7 @@ function AddPartnerModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4" onClick={onClose}>
       <div
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
@@ -202,7 +216,8 @@ function AddPartnerModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -216,6 +231,8 @@ function EditPartnerModal({
   onClose: () => void;
   onSaved: (updated: Partner) => void;
 }) {
+  useLockBodyScroll();
+
   const [form, setForm] = useState({
     name: partner.name,
     phone: partner.phone,
@@ -244,7 +261,7 @@ function EditPartnerModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4" onClick={onClose}>
       <div
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
@@ -331,7 +348,8 @@ function EditPartnerModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -345,7 +363,9 @@ function DeleteConfirmModal({
   onConfirm: () => void;
   deleting: boolean;
 }) {
-  return (
+  useLockBodyScroll();
+
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4" onClick={onCancel}>
       <div
         className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden"
@@ -376,7 +396,8 @@ function DeleteConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -437,7 +458,7 @@ export default function PartnerTable() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">
-            Delivery Partner Table
+            Delivery Partners
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             Manage delivery partners and monitor delivery capacity.

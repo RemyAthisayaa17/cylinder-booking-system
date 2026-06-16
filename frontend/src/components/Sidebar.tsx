@@ -27,7 +27,7 @@ const NAV: Record<Role, { to: string; icon: typeof Flame; label: string }[]> = {
   ],
   ADMIN: [
     { to: '/admin/assignments', icon: Activity, label: 'Auto Assignment' },
-    { to: '/admin/partners',    icon: Users,    label: 'Partner Table'   },
+    { to: '/admin/partners',    icon: Users,    label: 'Delivery Partners'   },
   ],
 };
 

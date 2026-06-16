@@ -55,8 +55,7 @@ export default function PartnerOrders() {
           {orders.map((o) => {
             const s = statusBadge[o.status];
             const isCompleted = o.status === 'DELIVERED';
-            // Cancelled orders must never expose delivery-workflow actions
-            // (Continue Delivery, etc.) — only viewing details remains valid.
+          
             const isCancelled = o.status === 'CANCELLED';
 
             return (
