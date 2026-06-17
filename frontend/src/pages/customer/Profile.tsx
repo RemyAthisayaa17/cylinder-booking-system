@@ -25,106 +25,104 @@ export default function Profile() {
     RURAL: 'Rural',
   };
 
+  const initials = user?.name?.[0]?.toUpperCase() ?? '?';
+
+  const Field = ({
+    label,
+    value,
+    green,
+  }: {
+    label: string;
+    value?: string | null;
+    green?: boolean;
+  }) => (
+    <div className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
+      <span className="text-sm text-gray-400">{label}</span>
+      <span
+        className={`text-sm font-medium ${
+          value
+            ? green
+              ? 'text-green-600'
+              : 'text-gray-800'
+            : 'text-gray-300'
+        }`}
+      >
+        {value || '—'}
+      </span>
+    </div>
+  );
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-5">
+    <div className="max-w-2xl mx-auto">
+      {/* Page header */}
+      <div className="mb-4">
         <h1 className="page-title">Profile</h1>
         <p className="page-sub">Your account details</p>
       </div>
 
-      {/* Profile Summary */}
-      <div className="card mb-4">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center flex-shrink-0">
-            <span className="text-2xl font-bold text-white">
-              {user?.name?.[0]?.toUpperCase()}
-            </span>
-          </div>
+      {/* Single unified card */}
+      <div className="card p-0 overflow-hidden">
 
-          <div className="min-w-0">
-            <h2 className="text-xl font-bold text-gray-900 break-words">
+        {/* ── Identity band ── */}
+        <div className="flex items-center gap-3 px-5 py-4 bg-gray-50 border-b border-gray-100">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-bold text-white leading-none">{initials}</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-gray-900 leading-tight truncate">
               {user?.name}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              +91 {user?.phone}
             </p>
+            <p className="text-xs text-gray-400 mt-0.5">+91 {user?.phone}</p>
           </div>
         </div>
+
+        {/* ── Detail body ── */}
+        {loading ? (
+          <div className="px-5 py-4">
+            <p className="text-sm text-gray-300">Loading…</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 md:divide-x divide-gray-100">
+
+            {/* Account column */}
+            <div className="px-5 pt-3.5 pb-4">
+              <p className="text-[10px] font-semibold text-gray-300 uppercase tracking-widest mb-1">
+                Account
+              </p>
+              <Field
+                label="Customer Type"
+                value={customerTypeLabel[customer?.customerType ?? ''] ?? null}
+              />
+              <Field
+                label="Area Type"
+                value={areaTypeLabel[customer?.areaType ?? ''] ?? null}
+              />
+              <Field
+                label="Subsidy Eligible"
+                value={
+                  customer?.subsidyEligible === undefined
+                    ? null
+                    : customer.subsidyEligible
+                    ? 'Yes'
+                    : 'No'
+                }
+                green={customer?.subsidyEligible === true}
+              />
+            </div>
+
+            {/* Address column */}
+            <div className="px-5 pt-3.5 pb-4 border-t border-gray-100 md:border-t-0">
+              <p className="text-[10px] font-semibold text-gray-300 uppercase tracking-widest mb-1">
+                Address
+              </p>
+              <Field label="Street" value={customer?.address} />
+              <Field label="City"   value={customer?.city} />
+              <Field label="State"  value={customer?.state} />
+            </div>
+
+          </div>
+        )}
       </div>
-
-      {loading ? (
-        <div className="card">
-          <p className="text-sm text-gray-400">Loading...</p>
-        </div>
-      ) : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Customer Information */}
-          <div className="card">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
-              Customer Information
-            </h3>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-center pb-3 border-b border-gray-50">
-                <span className="text-gray-500">Customer Type</span>
-                <span className="font-semibold text-gray-900">
-                  {customerTypeLabel[customer?.customerType ?? ''] ?? 'Not Assigned'}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center pb-3 border-b border-gray-50">
-                <span className="text-gray-500">Area Type</span>
-                <span className="font-semibold text-gray-900">
-                  {areaTypeLabel[customer?.areaType ?? ''] ?? 'Not Assigned'}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-gray-500">Subsidy Eligible</span>
-                <span
-                  className={`font-semibold ${
-                    customer?.subsidyEligible
-                      ? 'text-green-600'
-                      : 'text-gray-500'
-                  }`}
-                >
-                  {customer?.subsidyEligible ? 'Yes' : 'No'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Address Information */}
-          <div className="card">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
-              Address Information
-            </h3>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-start pb-3 border-b border-gray-50">
-                <span className="text-gray-500">Address</span>
-                <span className="font-semibold text-gray-900 text-right max-w-[65%] break-words">
-                  {customer?.address || '-'}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center pb-3 border-b border-gray-50">
-                <span className="text-gray-500">City</span>
-                <span className="font-semibold text-gray-900">
-                  {customer?.city || '-'}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-gray-500">State</span>
-                <span className="font-semibold text-gray-900">
-                  {customer?.state || '-'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

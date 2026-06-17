@@ -17,6 +17,7 @@ import deliveryRoutes from "./routes/deliveryRoutes";
 import invoiceRoutes from "./routes/invoiceRoutes";
 import authRoutes from "./routes/authRoutes";
 import adminRoutes from "./routes/adminRoutes";
+import notificationRoutes from "./routes/notificationRoutes";
 
 import { errorMiddleware } from "./middleware/errorMiddleware";
 import { notFoundMiddleware } from "./middleware/notFoundMiddleware";
@@ -68,6 +69,7 @@ app.use("/api/delivery", deliveryRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // ------------------- NOT FOUND -------------------
 app.use(notFoundMiddleware);

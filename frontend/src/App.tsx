@@ -9,6 +9,7 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 
 // Customer
+import NotificationBell from './components/NotificationBell';
 import Dashboard from './pages/customer/Dashboard';
 import NewOrder from './pages/customer/NewOrder';
 import Orders from './pages/customer/Orders';
@@ -49,12 +50,17 @@ function RoleGuard({ allow }: { allow: Role[] }) {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
+<div className="flex-1 min-w-0">
+  <div className="w-full max-w-7xl mx-auto px-4 md:px-6 pt-4">
+    <div className="flex justify-end">
+      <NotificationBell />
+    </div>
+  </div>
 
-      <div className="flex-1 min-w-0">
-        <main className="w-full max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6">
-          <Outlet />
-        </main>
-      </div>
+  <main className="w-full max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6">
+    <Outlet />
+  </main>
+</div>
     </div>
   );
 }

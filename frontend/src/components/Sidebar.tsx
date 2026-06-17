@@ -41,11 +41,17 @@ export default function Sidebar() {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
 
-  function handleLogout() {
-    logout();
-    showSuccess('Logged out');
-    navigate('/login');
-  }
+ function handleLogout() {
+  const confirmed = window.confirm(
+    'Are you sure you want to sign out?'
+  );
+
+  if (!confirmed) return;
+
+  logout();
+  showSuccess('Logged out');
+  navigate('/login');
+}
 
   const navItems = role ? (NAV[role] ?? []) : [];
 

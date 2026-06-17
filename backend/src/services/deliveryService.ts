@@ -8,6 +8,7 @@ import { AppError } from "../utils/AppError";
 import { generateInvoice } from "./invoiceService";
 import { sendArrivalSMS } from "./smsService";
 import { assignBestPartner, assignPendingOrders } from "./assignmentService";
+import { createNotification } from "./notificationService";
 
 
 export const assignDeliveryPartner = async (orderId: string) => {
@@ -155,7 +156,7 @@ export const completeDelivery = async (data: {
     return updatedOrder;
   });
 
-  // BUG #1 FIX: Partner is now AVAILABLE — sweep pending CONFIRMED orders.
+  
   assignPendingOrders().catch((err) =>
     console.error(
       "[completeDelivery] assignPendingOrders sweep failed:",
@@ -204,7 +205,16 @@ export const markPartnerArrived = async (orderId: string) => {
     throw new AppError("Order is not out for delivery", 409);
   }
 
-  const smsResult = await sendArrivalSMS(order.customer.phone, order.id);
+  const smsResult = await sendArrivalSMS(
+    order.customer.phone,
+    order.id
+  );
+
+  await createNotification(
+    order.customerId,
+    "Partner Arrived",
+    "Your delivery partner has arrived. Please be available to receive your cylinder."
+  );
 
   return {
     orderId,

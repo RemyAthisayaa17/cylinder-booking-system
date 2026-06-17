@@ -9,6 +9,7 @@ import type { Order } from '../../types';
 import type { EligibilityResult } from '../../services/orders';
 import { showSuccess, showError } from '../../utils/toast';
 
+
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
