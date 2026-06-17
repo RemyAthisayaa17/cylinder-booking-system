@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Flame,
@@ -13,6 +14,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { showSuccess } from '../utils/toast';
 import type { Role } from '../types';
+import ConfirmModal from './ConfirmModal';
 
 const NAV: Record<Role, { to: string; icon: typeof Flame; label: string }[]> = {
   CUSTOMER: [
@@ -41,17 +43,14 @@ export default function Sidebar() {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
 
- function handleLogout() {
-  const confirmed = window.confirm(
-    'Are you sure you want to sign out?'
-  );
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
 
-  if (!confirmed) return;
-
-  logout();
-  showSuccess('Logged out');
-  navigate('/login');
-}
+  function handleLogoutConfirm() {
+    logout();
+    showSuccess('Logged out');
+    navigate('/login');
+    setLogoutModalOpen(false);
+  }
 
   const navItems = role ? (NAV[role] ?? []) : [];
 
@@ -116,13 +115,24 @@ export default function Sidebar() {
           </div>
         </div>
         <button
-          onClick={handleLogout}
+          onClick={() => setLogoutModalOpen(true)}
           className="flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl text-sm text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all duration-150 group"
         >
           <LogOut size={15} className="group-hover:text-red-500 transition-colors" />
           Sign out
         </button>
       </div>
+
+      {logoutModalOpen && (
+        <ConfirmModal
+          title="Logout"
+          message="Are you sure you want to sign out?"
+          confirmLabel="Logout"
+          variant="danger"
+          onCancel={() => setLogoutModalOpen(false)}
+          onConfirm={handleLogoutConfirm}
+        />
+      )}
     </aside>
   );
 }

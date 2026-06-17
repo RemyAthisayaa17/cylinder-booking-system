@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
-import { Users, UserCheck, Truck, BarChart3, Star, Pencil, Trash2, X, AlertTriangle, UserPlus } from 'lucide-react';
+import { Users, UserCheck, Truck, BarChart3, Star, Pencil, Trash2, X, UserPlus } from 'lucide-react';
 import { showError, showSuccess } from '../../utils/toast';
 import { getPartners, createPartner, updatePartner, deletePartner } from '../../services/admin';
+import ConfirmModal from '../../components/ConfirmModal';
 
 type Partner = {
   id: string;
@@ -353,54 +354,6 @@ function EditPartnerModal({
   );
 }
 
-// ── Delete Confirmation Modal ────────────────────────────────────────────────
-function DeleteConfirmModal({
-  onCancel,
-  onConfirm,
-  deleting,
-}: {
-  onCancel: () => void;
-  onConfirm: () => void;
-  deleting: boolean;
-}) {
-  useLockBodyScroll();
-
-  return createPortal(
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4" onClick={onCancel}>
-      <div
-        className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="px-5 py-5 flex flex-col items-center text-center">
-          <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-3">
-            <AlertTriangle size={20} className="text-red-500" />
-          </div>
-          <p className="font-bold text-gray-900 text-sm mb-1.5">Delete Delivery Partner</p>
-          <p className="text-sm text-gray-500">
-            Are you sure you want to delete this delivery partner?
-          </p>
-        </div>
-        <div className="flex items-center gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/60">
-          <button
-            onClick={onCancel}
-            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={deleting}
-            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {deleting ? 'Deleting…' : 'Delete'}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 export default function PartnerTable() {
   const [partners, setPartners]       = useState<Partner[]>([]);
   const [loading, setLoading]         = useState(false);
@@ -590,8 +543,13 @@ export default function PartnerTable() {
       )}
 
       {deleteTarget && (
-        <DeleteConfirmModal
-          deleting={deleting}
+        <ConfirmModal
+          title="Delete Delivery Partner"
+          message="Are you sure you want to delete this delivery partner?"
+          confirmLabel="Delete"
+          confirmingLabel="Deleting…"
+          confirming={deleting}
+          variant="danger"
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleDelete}
         />
