@@ -3,6 +3,7 @@ import { AuthRequest } from "../middleware/authMiddleware";
 
 import {
   getCustomerNotifications,
+  getPartnerNotifications,
   markNotificationAsRead,
 } from "../services/notificationService";
 
@@ -12,13 +13,17 @@ import { AppError } from "../utils/AppError";
 
 export const getNotificationsController = asyncHandler(
   async (req: AuthRequest, res: Response) => {
-    const customerId = req.user?.id;
+    const userId = req.user?.id;
+    const role = req.user?.role;
 
-    if (!customerId) {
+    if (!userId) {
       throw new AppError("Unauthorized", 401);
     }
 
-    const data = await getCustomerNotifications(customerId);
+    const data =
+      role === "DELIVERY_PARTNER"
+        ? await getPartnerNotifications(userId)
+        : await getCustomerNotifications(userId);
 
     return successResponse({
       res,

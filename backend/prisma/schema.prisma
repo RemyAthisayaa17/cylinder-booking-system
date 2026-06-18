@@ -105,6 +105,7 @@ model DeliveryPartner {
   serviceZone String
 
   orders Order[]
+  notifications Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -274,8 +275,11 @@ model OtpVerification {
 model Notification {
   id         String   @id @default(cuid())
 
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  partnerId String?
+  partner   DeliveryPartner? @relation(fields: [partnerId], references: [id])
 
   title      String
   message    String

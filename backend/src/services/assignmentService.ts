@@ -1,12 +1,15 @@
 import prisma from "../config/db";
 import { PartnerStatus, OrderStatus, DeliveryStatus } from "@prisma/client";
 import { AppError } from "../utils/AppError";
+import { createPartnerNotification } from "./notificationService";
 
 
 async function executeAssignment(
   orderId: string,
   partnerId: string,
-  partnerName: string
+  partnerName: string,
+  customerName: string,
+  deliveryAddress: string
 ): Promise<void> {
   await prisma.$transaction([
     prisma.order.update({
@@ -35,6 +38,19 @@ async function executeAssignment(
       },
     }),
   ]);
+
+  try {
+    await createPartnerNotification(
+      partnerId,
+      "New Order Assigned",
+      `You have been assigned a new order.\n\nOrder ID: #${orderId}\n`
+    );
+  } catch (err) {
+    console.error(
+      `[assignmentService] Failed to create partner notification for order ${orderId}:`,
+      err
+    );
+  }
 }
 
 
@@ -74,7 +90,7 @@ if (availablePartners.length === 0) {
 }
 
 const partner = availablePartners[0];
-  await executeAssignment(orderId, partner.id, partner.name);
+  await executeAssignment(orderId, partner.id, partner.name, order.customer.name, order.deliveryAddress);
 
   return { assigned: true, partnerId: partner.id, partnerName: partner.name };
 };
@@ -123,7 +139,7 @@ const partner = availablePartners[0];
 
 
     try {
-      await executeAssignment(order.id, partner.id, partner.name);
+      await executeAssignment(order.id, partner.id, partner.name, order.customer.name, order.deliveryAddress);
       results.push({
         orderId: order.id,
         partnerId: partner.id,

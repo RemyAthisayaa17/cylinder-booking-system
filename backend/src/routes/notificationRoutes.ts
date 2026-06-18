@@ -13,14 +13,14 @@ const router = Router();
 router.get(
   "/",
   authMiddleware,
-  authorizeRoles("CUSTOMER"),
+  authorizeRoles("CUSTOMER", "DELIVERY_PARTNER"),
   getNotificationsController
 );
 
 router.patch(
   "/:notificationId/read",
   authMiddleware,
-  authorizeRoles("CUSTOMER"),
+  authorizeRoles("CUSTOMER", "DELIVERY_PARTNER"),
   markNotificationReadController
 );
 

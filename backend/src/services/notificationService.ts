@@ -14,12 +14,39 @@ export const createNotification = async (
   });
 };
 
+export const createPartnerNotification = async (
+  partnerId: string,
+  title: string,
+  message: string
+) => {
+  return prisma.notification.create({
+    data: {
+      partnerId,
+      title,
+      message,
+    },
+  });
+};
+
 export const getCustomerNotifications = async (
   customerId: string
 ) => {
   return prisma.notification.findMany({
     where: {
       customerId,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+export const getPartnerNotifications = async (
+  partnerId: string
+) => {
+  return prisma.notification.findMany({
+    where: {
+      partnerId,
     },
     orderBy: {
       createdAt: "desc",
