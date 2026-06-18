@@ -6,22 +6,29 @@ import { createPartner } from '../../services/admin';
 type Form = {
   name: string;
   phone: string;
+  email: string;
   serviceZone: string;
 };
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function CreatePartner() {
   const [form, setForm] = useState<Form>({
     name: '',
     phone: '',
+    email: '',
     serviceZone: '',
   });
 
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    const cleanPhone = form.phone.replace(/\D/g, '').trim();
+    if (submitting) return;
 
-    if (!form.name.trim() || !cleanPhone || !form.serviceZone) {
+    const cleanPhone = form.phone.replace(/\D/g, '').trim();
+    const cleanEmail = form.email.trim();
+
+    if (!form.name.trim() || !cleanPhone || !cleanEmail || !form.serviceZone) {
       showError('All fields are required');
       return;
     }
@@ -31,12 +38,17 @@ export default function CreatePartner() {
       return;
     }
 
+    if (!EMAIL_REGEX.test(cleanEmail)) {
+      showError('Enter a valid email address');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      await createPartner({ ...form, phone: cleanPhone });
+      await createPartner({ name: form.name.trim(), phone: cleanPhone, email: cleanEmail, serviceZone: form.serviceZone });
       showSuccess('Partner created successfully');
-      setForm({ name: '', phone: '', serviceZone: '' });
+      setForm({ name: '', phone: '', email: '', serviceZone: '' });
     } catch (err: unknown) {
       const e = err as { response?: { data?: { msg?: string } }; message?: string };
       showError(e?.response?.data?.msg || e?.message || 'Failed to create partner');
@@ -101,6 +113,22 @@ export default function CreatePartner() {
                 }
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email Address <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              className="w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition-all"
+              placeholder="partner@example.com"
+              value={form.email}
+              onChange={e => setForm({ ...form, email: e.target.value })}
+            />
+            <p className="text-xs text-gray-400 mt-1.5">
+              Used to send order assignment notifications to this partner.
+            </p>
           </div>
 
           <div>

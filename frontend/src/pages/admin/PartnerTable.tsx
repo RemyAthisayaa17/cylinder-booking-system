@@ -10,12 +10,15 @@ type Partner = {
   id: string;
   name: string;
   phone: string;
+  email: string;
   serviceZone: string;
   currentStatus: 'AVAILABLE' | 'ON_DELIVERY' | 'OFF_DUTY';
   completedDeliveries: number;
   pendingDeliveries: number;
   rating: number;
 };
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 
 function useLockBodyScroll() {
@@ -94,7 +97,7 @@ function AddPartnerModal({
 }) {
   useLockBodyScroll();
 
-  const [form, setForm] = useState({ name: '', phone: '', serviceZone: '' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', serviceZone: '' });
   const [submitting, setSubmitting] = useState(false);
 
   const validate = (): string | null => {
@@ -102,18 +105,24 @@ function AddPartnerModal({
     const cleanPhone = form.phone.replace(/\D/g, '').trim();
     if (!cleanPhone) return 'Phone number is required';
     if (cleanPhone.length !== 10) return 'Phone must be exactly 10 digits';
+    const cleanEmail = form.email.trim();
+    if (!cleanEmail) return 'Email is required';
+    if (!EMAIL_REGEX.test(cleanEmail)) return 'Enter a valid email address';
     if (!form.serviceZone) return 'Area type is required';
     return null;
   };
 
   const handleCreate = async () => {
+    if (submitting) return;
+
     const err = validate();
     if (err) { showError(err); return; }
 
     const cleanPhone = form.phone.replace(/\D/g, '').trim();
+    const cleanEmail = form.email.trim();
     setSubmitting(true);
     try {
-      const res = await createPartner({ name: form.name.trim(), phone: cleanPhone, serviceZone: form.serviceZone });
+      const res = await createPartner({ name: form.name.trim(), phone: cleanPhone, email: cleanEmail, serviceZone: form.serviceZone });
       showSuccess('Partner created successfully');
       onCreated(res.data);
       onClose();
@@ -186,6 +195,19 @@ function AddPartnerModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Email Address <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition-all"
+              placeholder="partner@example.com"
+              value={form.email}
+              onChange={e => setForm({ ...form, email: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Area Type <span className="text-red-500">*</span>
             </label>
             <select
@@ -237,21 +259,27 @@ function EditPartnerModal({
   const [form, setForm] = useState({
     name: partner.name,
     phone: partner.phone,
+    email: partner.email,
     serviceZone: partner.serviceZone,
   });
   const [submitting, setSubmitting] = useState(false);
 
   const handleSave = async () => {
+    if (submitting) return;
+
     const cleanPhone = form.phone.replace(/\D/g, '').trim();
+    const cleanEmail = form.email.trim();
 
     if (!form.name.trim()) { showError('Name is required'); return; }
     if (!cleanPhone) { showError('Phone number is required'); return; }
     if (cleanPhone.length !== 10) { showError('Enter a valid 10-digit mobile number'); return; }
+    if (!cleanEmail) { showError('Email is required'); return; }
+    if (!EMAIL_REGEX.test(cleanEmail)) { showError('Enter a valid email address'); return; }
     if (!form.serviceZone) { showError('Area type is required'); return; }
 
     setSubmitting(true);
     try {
-      const res = await updatePartner(partner.id, { ...form, phone: cleanPhone });
+      const res = await updatePartner(partner.id, { name: form.name.trim(), phone: cleanPhone, email: cleanEmail, serviceZone: form.serviceZone });
       showSuccess('Partner updated successfully');
       onSaved({ ...partner, ...res.data });
     } catch (err: unknown) {
@@ -315,6 +343,18 @@ function EditPartnerModal({
                 onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Email Address <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition-all"
+              value={form.email}
+              onChange={e => setForm({ ...form, email: e.target.value })}
+            />
           </div>
 
           <div>
@@ -450,7 +490,7 @@ export default function PartnerTable() {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Partner</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Phone</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Contact</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Zone</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Status</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3.5">Deliveries</th>
@@ -471,7 +511,10 @@ export default function PartnerTable() {
                       <p className="font-semibold text-gray-900 text-sm">{p.name}</p>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 text-gray-600 text-sm">{p.phone}</td>
+                  <td className="px-5 py-3.5 text-gray-600 text-sm">
+                    <p>{p.phone}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{p.email || '—'}</p>
+                  </td>
                   <td className="px-5 py-3.5">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
                       {p.serviceZone}

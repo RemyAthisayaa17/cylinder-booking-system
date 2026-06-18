@@ -14,6 +14,7 @@ api.interceptors.request.use(config => {
 export const createPartner = async (data: {
   name: string;
   phone: string;
+  email: string;
   serviceZone: string;
 }) => {
   const res = await api.post('/admin/partners', data);
@@ -29,7 +30,7 @@ export const getPartners = async () => {
 
 export const updatePartner = async (
   id: string,
-  data: { name: string; phone: string; serviceZone: string }
+  data: { name: string; phone: string; email: string; serviceZone: string }
 ) => {
   const res = await api.patch(`/admin/partners/${id}`, data);
   return res.data;

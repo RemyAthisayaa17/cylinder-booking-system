@@ -10,11 +10,26 @@ import {
   deletePartnerService,
 } from "../services/adminService";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const createPartnerController = asyncHandler(async (req: Request, res: Response) => {
-  const { name, phone, serviceZone } = req.body;
-  if (!name || !phone || !serviceZone) throw new AppError("Missing required fields", 400);
-  const partner = await createPartnerService({ name, phone, serviceZone });
+  const { name, phone, email, serviceZone } = req.body;
+
+  if (!name || !phone || !email || !serviceZone) {
+    throw new AppError("Missing required fields", 400);
+  }
+
+  if (!EMAIL_REGEX.test(String(email).trim())) {
+    throw new AppError("Invalid email format", 400);
+  }
+
+  const partner = await createPartnerService({
+    name,
+    phone,
+    email: String(email).trim(),
+    serviceZone,
+  });
+
   return successResponse({ res, code: 201, msg: "Partner created successfully", data: partner });
 });
 
@@ -27,9 +42,23 @@ export const getPartnersController = asyncHandler(async (req: Request, res: Resp
 
 export const updatePartnerController = asyncHandler(async (req: Request, res: Response) => {
   const id = String(req.params.id);
-  const { name, phone, serviceZone } = req.body;
-  if (!name || !phone || !serviceZone) throw new AppError("Missing required fields", 400);
-  const partner = await updatePartnerService(id, { name, phone, serviceZone });
+  const { name, phone, email, serviceZone } = req.body;
+
+  if (!name || !phone || !email || !serviceZone) {
+    throw new AppError("Missing required fields", 400);
+  }
+
+  if (!EMAIL_REGEX.test(String(email).trim())) {
+    throw new AppError("Invalid email format", 400);
+  }
+
+  const partner = await updatePartnerService(id, {
+    name,
+    phone,
+    email: String(email).trim(),
+    serviceZone,
+  });
+
   return successResponse({ res, code: 200, msg: "Partner updated successfully", data: partner });
 });
 

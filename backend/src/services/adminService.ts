@@ -76,39 +76,55 @@ export const getPartnersService = async () => {
 
 export const updatePartnerService = async (
   id: string,
-  data: { name: string; phone: string; serviceZone: string }
+  data: { name: string; phone: string; email: string; serviceZone: string }
 ) => {
   const partner = await prisma.deliveryPartner.findUnique({ where: { id } });
   if (!partner) throw new AppError("Partner not found", 404);
 
   blockAdminPhone(data.phone, "partner update");
 
+  // PHONE CHECKS (only when phone is actually changing)
   if (data.phone !== partner.phone) {
-  const phoneInUse = await prisma.deliveryPartner.findUnique({
-    where: { phone: data.phone },
-  });
+    const phoneInUse = await prisma.deliveryPartner.findUnique({
+      where: { phone: data.phone },
+    });
+    if (phoneInUse) {
+      throw new AppError("Phone already in use", 409);
+    }
 
-  if (phoneInUse) {
-    throw new AppError("Phone already in use", 409);
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { phone: data.phone },
+    });
+    if (existingCustomer) {
+      throw new AppError("Phone already registered", 409);
+    }
   }
 
-  const existingCustomer = await prisma.customer.findUnique({
-    where: { phone: data.phone },
-  });
+  // EMAIL CHECKS (only when email is actually changing) — mirrors createPartnerService
+  if (data.email !== partner.email) {
+    const existingCustomerEmail = await prisma.customer.findUnique({
+      where: { email: data.email },
+    });
+    if (existingCustomerEmail) {
+      throw new AppError("Email already registered as customer", 409);
+    }
 
-  if (existingCustomer) {
-    throw new AppError("Phone already registered", 409);
-  }
-}
-
-  if (data.phone !== partner.phone) {
-    const phoneInUse = await prisma.deliveryPartner.findUnique({ where: { phone: data.phone } });
-    if (phoneInUse) throw new AppError("Phone already in use", 409);
+    const existingPartnerEmail = await prisma.deliveryPartner.findUnique({
+      where: { email: data.email },
+    });
+    if (existingPartnerEmail) {
+      throw new AppError("Email already registered", 409);
+    }
   }
 
   return prisma.deliveryPartner.update({
     where: { id },
-    data: { name: data.name, phone: data.phone, serviceZone: data.serviceZone },
+    data: {
+      name: data.name,
+      phone: data.phone,
+      email: data.email,
+      serviceZone: data.serviceZone,
+    },
   });
 };
 
