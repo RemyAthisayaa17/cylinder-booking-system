@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import type { Role } from './types';
+import TopNavbar from './components/TopNavbar';
 
 // Auth
 import Login from './pages/auth/Login';
@@ -51,11 +52,7 @@ function RoleGuard({ allow }: { allow: Role[] }) {
     <div className="flex min-h-screen">
       <Sidebar />
 <div className="flex-1 min-w-0">
-  <div className="w-full max-w-7xl mx-auto px-4 md:px-6 pt-4">
-    <div className="flex justify-end">
-      <NotificationBell />
-    </div>
-  </div>
+  <TopNavbar />
 
   <main className="w-full max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6">
     <Outlet />
