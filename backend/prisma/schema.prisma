@@ -97,7 +97,8 @@ model DeliveryPartner {
   id            String        @id @default(cuid())
   name          String
   phone         String        @unique
-  currentStatus PartnerStatus @default(AVAILABLE)
+  email         String        @unique
+ currentStatus PartnerStatus @default(AVAILABLE)
 
   totalDeliveries Int   @default(0)
   rating          Float @default(5.0)

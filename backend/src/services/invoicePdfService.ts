@@ -35,37 +35,79 @@ export const generateInvoicePdf = async (data: InvoiceInput) => {
     doc.pipe(stream);
 
     // ================= HEADER =================
-    doc.fontSize(20).text("INVOICE", { align: "center" });
-    doc.moveDown();
+    doc.fontSize(22).font("Helvetica-Bold").text("INVOICE", { align: "center" });
+
+    doc.moveDown(0.5);
+    doc.fontSize(10).fillColor("gray").text("GAS DELIVERY SYSTEM", { align: "center" });
+    doc.fillColor("black");
+
+    doc.moveDown(1);
 
     doc.fontSize(12).text(`Invoice ID: ${data.invoiceId}`);
     doc.text(`Order ID: ${data.orderId}`);
     doc.text(`Date: ${data.createdAt.toDateString()}`);
-    doc.moveDown();
+
+    doc.moveDown(0.8);
+    doc
+      .strokeColor("#e5e7eb")
+      .lineWidth(1)
+      .moveTo(50, doc.y)
+      .lineTo(550, doc.y)
+      .stroke();
+
+    doc.moveDown(0.8);
 
     // ================= CUSTOMER =================
-    doc.fontSize(14).text("Customer Details");
+    doc.fontSize(13).font("Helvetica-Bold").text("Customer Details");
+    doc.moveDown(0.3);
+    doc.font("Helvetica");
+
     doc.fontSize(12).text(`Name: ${data.customerName}`);
     doc.text(`Email: ${data.customerEmail}`);
-    doc.moveDown();
+
+    doc.moveDown(0.8);
+    doc
+      .strokeColor("#e5e7eb")
+      .moveTo(50, doc.y)
+      .lineTo(550, doc.y)
+      .stroke();
+
+    doc.moveDown(0.8);
 
     // ================= BILLING =================
-    doc.fontSize(14).text("Billing Details");
-    doc.fontSize(12).text(`Cylinder Price: ₹${data.cylinderPrice}`);
-    doc.text(`Delivery Charge: ₹${data.deliveryCharge}`);
-    doc.text(`Tax: ₹${data.tax}`);
-    doc.text(`Subsidy: -₹${data.subsidy}`);
-    doc.moveDown();
+    doc.fontSize(13).font("Helvetica-Bold").text("Billing Details");
+    doc.moveDown(0.3);
+    doc.font("Helvetica");
+
+    doc.fontSize(12).text(`Cylinder Price      : ₹${data.cylinderPrice}`);
+    doc.text(`Delivery Charge     : ₹${data.deliveryCharge}`);
+    doc.text(`Tax                 : ₹${data.tax}`);
+    doc.text(`Subsidy             : -₹${data.subsidy}`);
+
+    doc.moveDown(0.8);
+    doc
+      .strokeColor("#e5e7eb")
+      .moveTo(50, doc.y)
+      .lineTo(550, doc.y)
+      .stroke();
+
+    doc.moveDown(1);
 
     // ================= TOTAL =================
-    doc.fontSize(16).text(`TOTAL AMOUNT: ₹${data.totalAmount}`, {
-      underline: true,
-    });
+    doc.fontSize(16).font("Helvetica-Bold").text(
+      `TOTAL AMOUNT: ₹${data.totalAmount}`,
+      { align: "right" }
+    );
 
-    doc.moveDown();
-    doc.fontSize(10).text("Thank you for your order!", {
-      align: "center",
-    });
+    doc.moveDown(2);
+
+    // ================= FOOTER =================
+    doc.fontSize(10).fillColor("gray").text(
+      "Thank you for choosing our service. We appreciate your trust.",
+      { align: "center" }
+    );
+
+    doc.fillColor("black");
 
     doc.end();
 

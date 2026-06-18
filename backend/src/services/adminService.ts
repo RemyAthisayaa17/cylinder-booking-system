@@ -6,11 +6,12 @@ import { assignPendingOrders } from "./assignmentService";
 export const createPartnerService = async (data: {
   name: string;
   phone: string;
+  email: string;
   serviceZone: string;
 }) => {
-  
   blockAdminPhone(data.phone, "partner creation");
 
+  // 1. PHONE CHECKS
   const existingPartner = await prisma.deliveryPartner.findUnique({
     where: { phone: data.phone },
   });
@@ -19,13 +20,35 @@ export const createPartnerService = async (data: {
   const existingCustomer = await prisma.customer.findUnique({
     where: { phone: data.phone },
   });
-
   if (existingCustomer)
-    throw new AppError("Phone already registered ", 409);
+    throw new AppError("Phone already registered", 409);
 
-  const partner = await prisma.deliveryPartner.create({ data });
+  // 2. EMAIL CHECKS (BEFORE CREATE ❗)
+  const existingCustomerEmail = await prisma.customer.findUnique({
+    where: { email: data.email },
+  });
+  if (existingCustomerEmail) {
+    throw new AppError("Email already registered as customer", 409);
+  }
 
+  const existingPartnerEmail = await prisma.deliveryPartner.findUnique({
+    where: { email: data.email },
+  });
+  if (existingPartnerEmail) {
+    throw new AppError("Email already registered", 409);
+  }
 
+  // 3. CREATE ONLY AFTER VALIDATION
+  const partner = await prisma.deliveryPartner.create({
+    data: {
+      name: data.name,
+      phone: data.phone,
+      email: data.email,
+      serviceZone: data.serviceZone,
+    },
+  });
+
+  // 4. TRIGGER ASSIGNMENT
   assignPendingOrders().catch((err) =>
     console.error("[adminService] assignPendingOrders after create failed:", err)
   );
