@@ -9,6 +9,7 @@ import { Btn } from '../../components/index';
 interface RegisterFormData {
   name: string;
   phone: string;
+  email: string;
   address: string;
   city: string;
   state: string;
@@ -73,7 +74,31 @@ export default function Register() {
                 />
                 {errors.phone && <p className="text-red-500 text-xs">{errors.phone.message}</p>}
               </div>
+              
+<div className="flex flex-col gap-1.5">
+  <label className="label">
+    Email <span className="text-red-500 ml-0.5">*</span>
+  </label>
 
+  <input
+    {...register('email', {
+      required: 'Email is required',
+      pattern: {
+        value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+        message: 'Please enter a valid email address',
+      },
+    })}
+    type="email"
+    placeholder="remy@example.com"
+    className="input"
+  />
+
+  {errors.email && (
+    <p className="text-red-500 text-xs">
+      {errors.email.message}
+    </p>
+  )}
+</div>
               <div className="flex flex-col gap-1.5">
                 <label className="label">Address <span className="text-red-500 ml-0.5">*</span></label>
                 <textarea {...register('address', { required: 'Address is required' })} placeholder="Street, Area" rows={2} className="input resize-none" />

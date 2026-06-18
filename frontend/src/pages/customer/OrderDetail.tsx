@@ -32,6 +32,7 @@ import {
 
 import { useAuth } from '../../context/AuthContext';
 import type { Order, RefundStatus } from '../../types';
+import { downloadInvoice } from '../../services/invoices';
 
 const ORDER_STEPS = [
   { key: 'PLACED',           label: 'Placed'           },
@@ -115,12 +116,11 @@ function PartnerWorkflow({
   act: (key: string, fn: () => Promise<unknown>) => Promise<void>;
   navigate: ReturnType<typeof useNavigate>;
 }) {
-  // markArrived sends an SMS but does NOT change order.status.
-  // Track locally so the button disappears after tapping.
+  
   const [arrivedDone, setArrivedDone] = useState(false);
 
   // ── Map modal state ────────────────────────────────────────────────────────
-  // Replaces the previous window.open() / new-tab behaviour.
+
   const [mapOpen, setMapOpen] = useState(false);
 
   const isCash        = order.paymentMethod === 'CASH';
@@ -512,14 +512,30 @@ export default function OrderDetail() {
               Pay UPI
             </button>
           )}
-          {invoiceReady && (
-            <button
-              onClick={() => navigate(`/invoices/${order.id}`)}
-              className="inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-95 bg-white text-brand-700 border-2 border-brand-200 hover:bg-brand-50 px-6 py-3 text-sm"
-            >
-              <FileText size={14} /> View Invoice
-            </button>
-          )}
+   {invoiceReady && (
+  <>
+    <button
+      onClick={() => navigate(`/invoices/${order.id}`)}
+      className="inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-95 bg-white text-brand-700 border-2 border-brand-200 hover:bg-brand-50 px-6 py-3 text-sm"
+    >
+      <FileText size={14} />
+      View Invoice
+    </button>
+
+    <button
+      onClick={() =>
+        act('download-invoice', async () => {
+          await downloadInvoice(order.id);
+          showSuccess('Invoice downloaded');
+        })
+      }
+      className="inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-95 bg-white text-brand-700 border-2 border-brand-200 hover:bg-brand-50 px-6 py-3 text-sm"
+    >
+      <FileText size={14} />
+      Download Invoice
+    </button>
+  </>
+)}
           {canCancel && (
             <button
               disabled={busy === 'cancel'}

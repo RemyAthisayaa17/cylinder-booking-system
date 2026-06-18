@@ -10,7 +10,16 @@ const ADMIN_ID = "admin-fixed-id";
 
 export const registerCustomer = async (data: any) => {
   blockAdminPhone(data.phone, "customer registration");
+  const existingEmail =
+  await prisma.customer.findUnique({
+    where: { email: data.email }
+  });
 
+if (existingEmail)
+  throw new AppError(
+    "Email already registered",
+    409
+  );
   const existing = await prisma.customer.findUnique({
     where: { phone: data.phone }
   });

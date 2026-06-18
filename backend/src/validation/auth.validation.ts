@@ -9,7 +9,7 @@ export const registerSchema = z.object({
   name: z.string().min(2, "Name too short"),
 
   phone,
-
+  email: z.string().email("Invalid email"),
   address: z.string().min(3),
   city: z.string().min(2),
   state: z.string().min(2),

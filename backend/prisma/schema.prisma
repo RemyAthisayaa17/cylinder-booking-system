@@ -74,7 +74,8 @@ model Customer {
   id              String       @id @default(cuid())
   name            String
   phone           String       @unique
-  password        String?
+  email           String @unique
+
   address         String
   city            String
   state           String

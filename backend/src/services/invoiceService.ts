@@ -5,6 +5,9 @@ import {
   AreaType,
 } from "@prisma/client";
 import { AppError } from "../utils/AppError";
+import { generateInvoicePdf } from "./invoicePdfService";
+import { sendInvoiceEmail } from "./emailService";
+
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -81,20 +84,44 @@ export const generateInvoice = async (orderId: string) => {
 
 
   try {
-    const invoice = await prisma.invoice.upsert({
-      where: { orderId },
-      update: {}, // if it exists, leave it untouched
-      create: {
-        orderId: order.id,
-        customerId: order.customerId,
-        cylinderPrice,
-        deliveryCharge,
-        tax,
-        subsidy,
-        totalAmount,
-      },
-    });
+ const invoice = await prisma.invoice.upsert({
+  where: { orderId },
+  update: {},
+  create: {
+    orderId: order.id,
+    customerId: order.customerId,
+    cylinderPrice,
+    deliveryCharge,
+    tax,
+    subsidy,
+    totalAmount,
+  },
+});
 
+await generateInvoicePdf({
+  invoiceId: invoice.id,
+  orderId: order.id,
+  customerName: order.customer.name,
+  customerEmail: order.customer.email,
+  cylinderPrice: invoice.cylinderPrice,
+  deliveryCharge: invoice.deliveryCharge,
+  tax: invoice.tax,
+  subsidy: invoice.subsidy,
+  totalAmount: invoice.totalAmount,
+  createdAt: invoice.createdAt,
+});
+try {
+  await sendInvoiceEmail(
+    order.customer.email,
+    invoice.id,
+    order.id
+  );
+} catch (err) {
+  console.error(
+    `[EMAIL] Failed to send invoice email for order ${order.id}:`,
+    err
+  );
+}
    
     const isNew =
       Math.abs(new Date(invoice.createdAt).getTime() - Date.now()) < 5000;

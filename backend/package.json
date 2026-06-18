@@ -24,6 +24,8 @@
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
     "node-cron": "^4.2.1",
+    "nodemailer": "^9.0.1",
+    "pdfkit": "^0.19.1",
     "swagger-ui-express": "^5.0.1",
     "twilio": "^6.0.2",
     "uuid": "^14.0.0",
@@ -38,6 +40,8 @@
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.1.0",
     "@types/node": "^24.12.4",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pdfkit": "^0.17.6",
     "prisma": "^6.19.3",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.2"

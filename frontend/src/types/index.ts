@@ -22,6 +22,7 @@ export interface ApiResponse<T = unknown> {
 export interface RegisterPayload {
   name:             string;
   phone:            string;
+  email:            string;
   address:          string;
   city:             string;
   state:            string;
