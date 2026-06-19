@@ -29,6 +29,10 @@ function StatusPill({ status }: { status: Order['status'] }) {
 function OrderCard({ o, onNavigate }: { o: Order; onNavigate: (id: string) => void }) {
   const isCompleted = o.status === 'DELIVERED';
   const isCancelled = o.status === 'CANCELLED';
+  const isCashCollected = o.paymentMethod === 'CASH' && o.paymentStatus === 'SUCCESS';
+  // Delivered, COD, payment not yet collected — partner still has a pending
+  // action to complete inside OrderDetail (the Cash Collected step).
+  const isCashPending = isCompleted && o.paymentMethod === 'CASH' && o.paymentStatus === 'PENDING';
 
   /* Shorten address: keep first two comma-separated segments */
   const shortAddr = o.deliveryAddress
@@ -62,21 +66,45 @@ function OrderCard({ o, onNavigate }: { o: Order; onNavigate: (id: string) => vo
           <span>{fmtDate(o.createdAt)}</span>
         </div>
 
-        {/* Row 4: Amount due (only if > 0) */}
+        {/* Row 4: Amount due / Cash collected — operationally important, so it gets visual weight */}
         {o.amountDue > 0 && (
-          <p className="text-sm font-semibold text-gray-800">
-            {money(o.amountDue)}
-          </p>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-gray-400">
+              {isCashCollected ? 'Cash Collected' : 'Amount Due'}
+            </span>
+            <span
+              className={`text-sm font-bold ${
+                isCashCollected ? 'text-emerald-600' : 'text-gray-800'
+              }`}
+            >
+              {money(o.amountDue)}
+            </span>
+          </div>
         )}
       </div>
 
       {/* ── Action strip ── */}
       <div className="px-5 pb-4">
-        {isCompleted ? (
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-            <CheckCircle2 size={13} />
-            Delivered
-          </span>
+        {isCompleted && isCashPending ? (
+          /* COD delivered, payment still pending — partner must go finish
+             the Cash Collected step inside Order Detail. This is the single
+             entry point back into PartnerWorkflow's cash-collection action;
+             no duplicate button is rendered here. */
+          <button
+            onClick={() => onNavigate(o.id)}
+            className="inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-95 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 px-4 py-2.5 text-xs"
+          >
+            <ChevronRight size={13} />
+            Collect Cash Payment
+          </button>
+        ) : isCompleted ? (
+          <button
+            onClick={() => onNavigate(o.id)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500"
+          >
+            <CheckCircle2 size={13} className="text-emerald-600" />
+            Delivered · View Details
+          </button>
         ) : isCancelled ? (
           <button
             onClick={() => onNavigate(o.id)}

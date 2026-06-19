@@ -119,11 +119,17 @@ function PartnerWorkflow({
   const [arrivedDone, setArrivedDone] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
 
-  const isCash        = order.paymentMethod === 'CASH';
   const isAssigned    = order.status === 'ASSIGNED';
   const isOFD         = order.status === 'OUT_FOR_DELIVERY';
   const isDelivered   = order.status === 'DELIVERED';
-  const cashCollected = isCash && order.paymentStatus === 'SUCCESS';
+  const isCOD         = order.paymentMethod === 'CASH';
+  const isPaymentDone = order.paymentStatus === 'SUCCESS';
+
+  // Final workflow step, COD orders only: delivered, but cash not yet collected.
+  const needsCashCollection = isDelivered && isCOD && !isPaymentDone;
+  // Workflow fully wrapped up: either an online order (nothing more to do once
+  // delivered) or a COD order whose cash has been collected.
+  const isWorkflowComplete  = isDelivered && (!isCOD || isPaymentDone);
 
   const hasCoords =
     typeof order.latitude  === 'number' &&
@@ -133,8 +139,8 @@ function PartnerWorkflow({
   const mapLat = hasCoords ? (order.latitude  as number) : 13.0827;
   const mapLng = hasCoords ? (order.longitude as number) : 80.2707;
 
-  // ── Fully completed ──────────────────────────────────────────────────────────
-  if (isDelivered && (!isCash || cashCollected)) {
+  // ── Workflow complete: delivered, and (online order OR COD cash collected) ───
+  if (isWorkflowComplete) {
     return (
       <div className="bg-white rounded-xl border border-gray-100 shadow-card p-5 mt-4">
         <p className="text-sm font-bold text-gray-900 mb-1">Delivery Steps</p>
@@ -143,22 +149,22 @@ function PartnerWorkflow({
           <DoneStep label="Navigated to Address" />
           <DoneStep label="Arrived at Location" />
           <DoneStep label="Proof Uploaded" />
-          {isCash && <DoneStep label="Cash Collected" />}
+          {isCOD && <DoneStep label="Cash Collected" />}
         </div>
         <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
             <CheckCircle2 size={13} className="text-white" strokeWidth={2.5} />
           </div>
           <span className="text-sm font-bold text-brand-700">
-            {isCash ? 'Payment Successful' : 'Delivery Completed'}
+            {isCOD ? 'Payment Collected' : 'Delivery Completed'}
           </span>
         </div>
       </div>
     );
   }
 
-  // ── DELIVERED, COD, cash not yet collected ───────────────────────────────────
-  if (isDelivered && isCash && !cashCollected) {
+  // ── DELIVERED, COD, cash not yet collected — final workflow step ────────────
+  if (needsCashCollection) {
     return (
       <div className="bg-white rounded-xl border border-gray-100 shadow-card p-5 mt-4">
         <p className="text-sm font-bold text-gray-900 mb-1">Delivery Steps</p>
@@ -177,9 +183,9 @@ function PartnerWorkflow({
                 showSuccess('Cash collected successfully!');
               })
             }
-            className="w-full inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-amber-600 text-white hover:bg-amber-700 px-6 py-3 text-sm"
+            className="inline-flex items-center justify-center gap-2 font-medium rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-white text-amber-700 border border-amber-200 hover:bg-amber-50 px-5 py-2.5 text-sm"
           >
-            <Banknote size={16} />
+            <Banknote size={15} />
             {busy === 'collect-cash' ? 'Collecting…' : 'Cash Collected'}
           </button>
         </div>
@@ -364,6 +370,11 @@ export default function OrderDetail() {
   const showRefund   = refundStatus != null && refundStatus !== 'NOT_REQUIRED';
   const dbRetryCount = order.payment?.retryCount ?? 0;
 
+  // Cash Collected is only meaningful for COD orders once payment has actually
+  // succeeded — driven entirely by backend fields, never hardcoded.
+  const isCashCollected =
+    order.paymentMethod === 'CASH' && order.paymentStatus === 'SUCCESS';
+
   return (
     <div className="max-w-2xl mx-auto">
 
@@ -463,6 +474,11 @@ export default function OrderDetail() {
             </DetailRow>
             <DetailRow label="Payment Method">{order.paymentMethod ?? '—'}</DetailRow>
             <DetailRow label="Payment"><Badge label={p.label} cls={p.cls} /></DetailRow>
+            {isCashCollected && (
+              <DetailRow label="Cash Collected">
+                <span className="font-bold text-emerald-600">{money(order.amountDue)}</span>
+              </DetailRow>
+            )}
             {showRefund && refundStatus && (
               <DetailRow label="Refund">
                 <Badge label={refundBadge[refundStatus].label} cls={refundBadge[refundStatus].cls} />
