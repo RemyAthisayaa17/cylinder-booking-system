@@ -147,7 +147,7 @@ export interface DeliveryTracking {
   afterPhoto?: string | null;
   signaturePhoto?: string | null;
 }
-// invoice nested on Order (summary, no nested relations)
+
 export interface InvoiceSummary {
   id:             string;
   orderId:        string;
