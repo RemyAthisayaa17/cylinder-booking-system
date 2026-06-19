@@ -38,8 +38,8 @@ export default function Profile() {
     value?: string | null;
     green?: boolean;
   }) => (
-    <div className="grid grid-cols-2 gap-3 py-2.5 border-b border-gray-100 last:border-0">
-      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide self-center">
+    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0">
+      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
         {label}
       </span>
       <span
@@ -57,103 +57,83 @@ export default function Profile() {
   );
 
   return (
-    <div className="flex items-start justify-center min-h-[calc(100vh-80px)] py-4 px-4">
-      <div className="w-full" style={{ maxWidth: '650px' }}>
+    <div className="max-w-2xl mx-auto py-2">
+      {/* Page header */}
+      <div className="mb-5">
+        <h1 className="text-xl font-bold text-gray-900 leading-tight">Profile</h1>
+        <p className="text-xs text-gray-400 mt-0.5">Your account details and address</p>
+      </div>
 
-        {/* Page header — tight */}
-        <div className="mb-4">
-          <h1 className="text-xl font-bold text-gray-900 leading-tight">Profile</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Your account details and address</p>
-        </div>
+      <div className="space-y-4">
 
-        {/* Unified card */}
-        <div
-          className="bg-white rounded-2xl overflow-hidden"
-          style={{ boxShadow: '0 1px 4px rgba(0,0,0,.07), 0 4px 20px rgba(0,0,0,.06)', border: '1px solid #f0eeff' }}
-        >
-
-          {/* ── Identity band ── */}
+        {/* Identity card */}
+        <div className="card flex items-center gap-4">
           <div
-            className="flex items-center gap-4 px-6 py-4"
-            style={{ background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)', borderBottom: '1px solid #ede9fe' }}
+            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-brand-600 to-brand-800 shadow-brand"
           >
-            {/* Avatar */}
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #9333ea 0%, #6b21a8 100%)', boxShadow: '0 4px 12px -2px rgba(147,51,234,.4)' }}
-            >
-              <span className="text-base font-bold text-white leading-none">{initials}</span>
-            </div>
-
-            {/* Name + phone */}
-            <div className="min-w-0 flex-1">
-              <p className="text-base font-bold text-gray-900 leading-tight truncate">
-                {user?.name}
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5 font-medium">+91 {user?.phone}</p>
-            </div>
-
-            
+            <span className="text-base font-bold text-white leading-none">{initials}</span>
           </div>
 
-          {/* ── Detail body ── */}
-          {loading ? (
-            <div className="px-6 py-5">
-              <div className="space-y-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="h-4 bg-gray-100 rounded animate-pulse w-3/4" />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2">
-
-              {/* Account column */}
-              <div className="px-6 py-4" style={{ borderRight: '1px solid #f3f4f6' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span
-                    className="text-[10px] font-bold uppercase tracking-widest"
-                    style={{ color: '#9333ea' }}
-                  >
-                    Account
-                  </span>
-                  <div className="flex-1 h-px bg-purple-100" />
-                </div>
-               
-                <Field label="Customer Type" value={customerTypeLabel[customer?.customerType ?? ''] ?? null} />
-                <Field label="Area Type"     value={areaTypeLabel[customer?.areaType ?? ''] ?? null} />
-                <Field
-                  label="Subsidy"
-                  value={
-                    customer?.subsidyEligible === undefined
-                      ? null
-                      : customer.subsidyEligible
-                      ? 'Eligible'
-                      : 'Not eligible'
-                  }
-                  green={customer?.subsidyEligible === true}
-                />
-              </div>
-
-              {/* Address column */}
-              <div className="px-6 py-4 border-t border-gray-100 md:border-t-0">
-                <div className="flex items-center gap-2 mb-3">
-                  <span
-                    className="text-[10px] font-bold uppercase tracking-widest"
-                    style={{ color: '#9333ea' }}
-                  >
-                    Address
-                  </span>
-                  <div className="flex-1 h-px bg-purple-100" />
-                </div>
-                <Field label="Street" value={customer?.address} />
-                <Field label="City"   value={customer?.city} />
-                <Field label="State"  value={customer?.state} />
-              </div>
-
-            </div>
-          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-bold text-gray-900 leading-tight truncate">
+              {user?.name}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5 font-medium">+91 {user?.phone}</p>
+            <p className="text-xs text-gray-500 mt-0.5 font-medium truncate">
+              {loading ? '' : (customer?.email || '—')}
+            </p>
+          </div>
         </div>
+
+        {loading ? (
+          <div className="card">
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-4 bg-gray-100 rounded animate-pulse w-3/4" />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Account card */}
+            <div className="card">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-600">
+                  Account
+                </span>
+                <div className="flex-1 h-px bg-brand-100" />
+              </div>
+
+              <Field label="Customer Type" value={customerTypeLabel[customer?.customerType ?? ''] ?? null} />
+              <Field label="Area Type" value={areaTypeLabel[customer?.areaType ?? ''] ?? null} />
+              <Field
+                label="Subsidy"
+                value={
+                  customer?.subsidyEligible === undefined
+                    ? null
+                    : customer.subsidyEligible
+                    ? 'Eligible'
+                    : 'Not eligible'
+                }
+                green={customer?.subsidyEligible === true}
+              />
+            </div>
+
+            {/* Address card */}
+            <div className="card">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-600">
+                  Address
+                </span>
+                <div className="flex-1 h-px bg-brand-100" />
+              </div>
+
+              <Field label="Street" value={customer?.address} />
+              <Field label="City" value={customer?.city} />
+              <Field label="State" value={customer?.state} />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

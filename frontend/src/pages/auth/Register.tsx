@@ -59,7 +59,7 @@ export default function Register() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="label">Full Name <span className="text-red-500 ml-0.5">*</span></label>
-                <input {...register('name', { required: 'Full name is required' })} placeholder="Ravi Kumar" className="input" />
+                <input {...register('name', { required: 'Full name is required' })} placeholder="Ravi" className="input" />
                 {errors.name && <p className="text-red-500 text-xs">{errors.name.message}</p>}
               </div>
 
@@ -89,7 +89,7 @@ export default function Register() {
       },
     })}
     type="email"
-    placeholder="remy@example.com"
+    placeholder="ravi@example.com"
     className="input"
   />
 

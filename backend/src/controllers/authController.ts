@@ -137,6 +137,7 @@ export const getMeController = asyncHandler(async (req: Request, res: Response) 
       id: true,
       name: true,
       phone: true,
+      email: true,
       address: true,
       city: true,
       state: true,

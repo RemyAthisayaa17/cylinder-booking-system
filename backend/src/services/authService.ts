@@ -20,6 +20,18 @@ if (existingEmail)
     "Email already registered",
     409
   );
+
+const existingPartnerEmail = await prisma.deliveryPartner.findUnique({
+  where: { email: data.email }
+});
+
+if (existingPartnerEmail) {
+  throw new AppError(
+    "Email already registered",
+    409
+  );
+}
+
   const existing = await prisma.customer.findUnique({
     where: { phone: data.phone }
   });
