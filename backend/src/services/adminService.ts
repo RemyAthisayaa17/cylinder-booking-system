@@ -3,6 +3,9 @@ import { AppError } from "../utils/AppError";
 import { blockAdminPhone } from "../utils/roleGuards";
 import { assignPendingOrders } from "./assignmentService";
 
+// Order statuses that block partner deletion
+const ACTIVE_ORDER_STATUSES = ["ASSIGNED", "OUT_FOR_DELIVERY"] as const;
+
 export const createPartnerService = async (data: {
   name: string;
   phone: string;
@@ -23,7 +26,7 @@ export const createPartnerService = async (data: {
   if (existingCustomer)
     throw new AppError("Phone already registered", 409);
 
-  // 2. EMAIL CHECKS (BEFORE CREATE ❗)
+  // 2. EMAIL CHECKS (BEFORE CREATE)
   const existingCustomerEmail = await prisma.customer.findUnique({
     where: { email: data.email },
   });
@@ -67,7 +70,8 @@ export const getPartnersService = async () => {
       (o: { status: string }) => o.status === "DELIVERED"
     ).length;
     const pendingDeliveries = orders.filter(
-      (o: { status: string }) => o.status === "ASSIGNED" || o.status === "OUT_FOR_DELIVERY"
+      (o: { status: string }) =>
+        o.status === "ASSIGNED" || o.status === "OUT_FOR_DELIVERY"
     ).length;
 
     return { ...partner, completedDeliveries, pendingDeliveries };
@@ -100,7 +104,7 @@ export const updatePartnerService = async (
     }
   }
 
-  // EMAIL CHECKS (only when email is actually changing) — mirrors createPartnerService
+  // EMAIL CHECKS (only when email is actually changing)
   if (data.email !== partner.email) {
     const existingCustomerEmail = await prisma.customer.findUnique({
       where: { email: data.email },
@@ -129,17 +133,52 @@ export const updatePartnerService = async (
 };
 
 export const deletePartnerService = async (id: string) => {
-  const partner = await prisma.deliveryPartner.findUnique({ where: { id } });
+  // 1. Confirm partner exists
+  const partner = await prisma.deliveryPartner.findUnique({
+    where: { id },
+    include: {
+      orders: {
+        select: { id: true, status: true },
+      },
+    },
+  });
+
   if (!partner) throw new AppError("Partner not found", 404);
 
-  try {
-    await prisma.deliveryPartner.delete({ where: { id } });
-  } catch (err: any) {
-    if (err?.code === "P2003") {
-      throw new AppError("Cannot delete partner with existing orders", 409);
-    }
-    throw err;
+  // 2. Check for any active / in-progress orders
+  //    Race-condition safe: we re-query inside a transaction below before
+  //    actually deleting, but this early check gives a fast, clear error.
+  const activeOrders = partner.orders.filter((o) =>
+    (ACTIVE_ORDER_STATUSES as readonly string[]).includes(o.status)
+  );
+
+  if (activeOrders.length > 0) {
+    throw new AppError(
+      "Delivery partner cannot be deleted while they have active or in-progress deliveries.",
+      409
+    );
   }
+
+  // 3. Re-validate inside a transaction to guard against race conditions
+  //    (another request could have assigned an order between the check above
+  //    and the delete below).
+  await prisma.$transaction(async (tx) => {
+    const activeCount = await tx.order.count({
+      where: {
+        partnerId: id,
+        status: { in: [...ACTIVE_ORDER_STATUSES] },
+      },
+    });
+
+    if (activeCount > 0) {
+      throw new AppError(
+        "Delivery partner cannot be deleted while they have active or in-progress deliveries.",
+        409
+      );
+    }
+
+    await tx.deliveryPartner.delete({ where: { id } });
+  });
 
   return { id };
 };
